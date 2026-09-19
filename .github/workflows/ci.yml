@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No direct Date() calls outside ClockProviding
+        run: ./scripts/check-no-date.sh
+
+      - name: Resolve a Simulator destination
+        id: destination
+        run: |
+          DEVICE=$(xcrun simctl list devices available --json \
+            | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][-1].name')
+          echo "Using simulator: $DEVICE"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        # Scoped to RukiTests (unit tests) only. RukiUITests is still Xcode's
+        # empty boilerplate — no M0/M1 story has written UI test content yet —
+        # and XCUITest needs a real accessibility session to launch, which
+        # this scoping sidesteps until there's something in it worth running.
+        run: >
+          xcodebuild test
+          -project Ruki.xcodeproj
+          -scheme Ruki
+          -destination "platform=iOS Simulator,name=${{ steps.destination.outputs.device }}"
+          -only-testing:RukiTests

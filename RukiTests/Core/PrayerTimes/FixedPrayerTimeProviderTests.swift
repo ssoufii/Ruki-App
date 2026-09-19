@@ -8,7 +8,7 @@ struct FixedPrayerTimeProviderTests {
     private let referenceDate = ISO8601DateFormatter().date(from: "2026-09-19T12:00:00Z")!
 
     @Test(
-        "Check-in window never reaches or exceeds the prayer window (Maghrib invariant, PRD §9.2)",
+        "Check-in window invariant: strictly inside the prayer window, except Fajr (PRD §9.2, D16, D17)",
         arguments: [Madhab.standard, Madhab.hanafi]
     )
     func maghribInvariantHolds(madhab: Madhab) {

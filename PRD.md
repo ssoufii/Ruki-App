@@ -87,10 +87,10 @@ Salah requires focus (*khushu'*); interrupting it to take a photo defeats the pu
 If capture-mid-prayer becomes a common pattern in testing, we add friction or restrict to non-selfie capture.
 
 ### RDP-5 — Modesty and privacy by default
-Photos taken at home may include family members, unveiled women, or private interiors. Mitigations: friends-only visibility always, no screenshots without notifying the poster, 24-hour expiry by default, no download/save of others' photos, no photo forwarding, and a "space only" capture mode that uses the rear camera only.
+Photos taken at home may include family members, unveiled women, or private interiors. Mitigations: friends-only visibility always, no screenshots without notifying the poster, expiry when the next prayer begins (D23), no download/save of others' photos, no photo forwarding, and a "space only" capture mode that uses the rear camera only.
 
 ### RDP-6 — Accommodate difference, don't arbitrate it
-The app supports multiple calculation methods, both Asr madhabs, Hanafi/Shafi'i differences, Shia combining of Dhuhr–Asr and Maghrib–Isha (3 sessions rather than 5), Jumu'ah replacing Dhuhr on Friday, and traveler's concessions (*qasr* / *jam'*). The app never tells a user their practice is wrong. Defaults are set once at onboarding and are trivially changeable.
+The app supports multiple calculation methods, both Asr madhabs, Hanafi/Shafi'i differences, Shia combining of Dhuhr–Asr and Maghrib–Isha (3 sessions rather than 5; **v1.1, D31**), Jumu'ah replacing Dhuhr on Friday (**fast-follow, §7.10**), and traveler's concessions (*qasr* / *jam'*). The app never tells a user their practice is wrong. Defaults are set once at onboarding and are trivially changeable.
 
 ---
 
@@ -132,8 +132,8 @@ Priority: **P0** = required for v1 launch · **P1** = fast-follow · **P2** = la
 
 ### 7.1 Onboarding — P0
 1. Sign in with Apple (primary) or phone number.
-2. Location permission (When In Use). Explain plainly: used to compute prayer times on-device; coarse coordinates only; never shared with friends. Manual city entry must be a first-class alternative for users who decline.
-3. Calculation method + Asr madhab + practice profile (5-session / 3-session).
+2. ~~Location permission.~~ **None at MVP (D21).** Toronto is assumed, so no permission prompt and no location data of any kind. Location, or manual city entry, returns with multi-city support.
+3. Asr madhab. (Calculation method is fixed for Toronto at MVP. The 3-session practice profile is v1.1 — D31.)
 4. Notification permission, with the Time-Sensitive rationale explained.
 5. Intention screen (RDP-1).
 6. Add friends (skippable — solo mode is fully supported).
@@ -144,7 +144,7 @@ Priority: **P0** = required for v1 launch · **P1** = fast-follow · **P2** = la
 See §8. Fully on-device, offline-capable.
 
 ### 7.3 The Prompt — P0
-- One prompt per obligatory prayer per day (5, or 3 for combining users).
+- One prompt per obligatory prayer per day (5 in v1; 3 for combining users arrives in v1.1 — D31).
 - **Fires at adhan — the exact start of the prayer window.** Not randomized. See §9.
 - Delivered as a **Time-Sensitive** notification so it pierces Focus and Do Not Disturb. Requires the `com.apple.developer.usernotifications.time-sensitive` entitlement.
 - Check-in Window: **30 minutes** from adhan. **20 minutes for Maghrib.** Fajr is an exception — see §9.3.
@@ -301,11 +301,11 @@ No randomization. `promptAt = prayerStart` for every prayer.
 | Dhuhr | 30 min | |
 | Asr | 30 min | |
 | Maghrib | **20 min** | Maghrib's own window is short; a 30-min check-in window would consume most of it |
-| Isha | 30 min | |
+| Isha | 30 min | Prayer window runs to the next Fajr adhan (D30), so the Late phase is long |
 
 After the Check-in Window closes, check-in remains available until the *prayer window* closes and is flagged **Late**. Late still counts for the streak. (§7.4)
 
-**Invariant to assert in code and test:** `checkInWindow < (prayerEnd - prayerStart)` for every prayer, every day of the year, in Toronto. Maghrib is the binding case. If this is ever violated, clamp the check-in window to the prayer window and log it.
+**Invariant to assert in code and test** (D16, D17): for Dhuhr, Asr, Maghrib and Isha, `checkInWindowEnd < prayerEnd` strictly, so a real Late phase always exists. For Fajr, `checkInWindowEnd == prayerEnd` exactly (Option A: no Late phase). Every prayer, every day of the year, in Toronto. Maghrib is the binding case. If a non-Fajr window ever violates it, clamp the check-in window inside the prayer window and log it.
 
 ### 9.3 Fajr — the 30-minute window does not work here
 **Resolved 2026-09-19: Option A.** Fajr's Check-in Window runs adhan → sunrise.
@@ -492,9 +492,9 @@ Full plan lives in `/docs/QA.md`. Summary of what makes this app unusually hard 
 
 | Phase | Scope | Est. |
 |---|---|---|
-| **M0 — Foundations** | Xcode project, SPM deps, CI, protocol boundaries, `ClockProviding`, Adhan integration, golden-file tests. No UI. | 1–2 wk |
+| **M0 — Foundations** ✅ | Xcode project, CI, protocol boundaries, `ClockProviding`, frozen `FixedPrayerTimeProvider` (D27). No UI. *Adhan integration and golden-file tests moved to the real engine (Epic 13) — see M2.* | 1–2 wk |
 | **M1 — Solo loop** | Prompt scheduling (local only), capture, local check-in, private history. Fully usable alone, no backend. Dogfoodable. | 3 wk |
-| **M2 — Backend & social** | Supabase, auth, friends, feed, push, RLS. | 3–4 wk |
+| **M2 — Backend & social** | **First: the real prayer-time engine** (server-side AlAdhan fetch + cache, `tune` offsets, Adhan-Swift fallback, full-year golden files) — no friend can be added while times are still the frozen snapshot (D27). Then Supabase, auth, friends, feed, push, RLS. | 3–4 wk |
 | **M3 — Hardening** | Time-zone/DST/latitude matrix, notification matrix, accessibility, RTL scaffolding, privacy review, scholar review. | 2–3 wk |
 | **M4 — TestFlight** | 30–50 users across ≥4 time zones incl. one high-latitude. 4-week soak. Watch Fajr rate and pause usage. | 4 wk |
 | **M5 — Launch** | App Review, App Store, launch. | 1–2 wk |
@@ -527,9 +527,9 @@ Realistic first-launch estimate: **14–19 weeks.** M1 is dogfoodable at week ~5
 |---|---|---|---|
 | OQ-1 | Which scholars review the concept, and across which madhabs? Needed before public launch. | Founder | M3 |
 | ~~OQ-2~~ | ~~Is "Context" the final name?~~ **Resolved: Ruki.** | — | Closed |
-| OQ-3 | Should Shia 3-session support ship in v1 or v1.1? Affects engine scope. | PM | M1 |
+| ~~OQ-3~~ | ~~Shia 3-session in v1 or v1.1?~~ **Resolved: v1.1 (D31).** | — | Closed |
 | ~~OQ-4~~ | ~~Circle cap size?~~ **Resolved: 5 for MVP.** Server-configurable. | — | Closed |
-| **OQ-8** | Which Toronto timetable is our ground truth, and what `tune` offsets match it? ISNA vs MWL, and which masjid do we align to? **Blocks M1** — we cannot ship notifications we can't defend as correct. | Founder | M1 |
+| **OQ-8** | Which Toronto timetable is our ground truth, and what `tune` offsets match it? ISNA vs MWL, and which masjid do we align to? **No longer blocks M1** (D27: M1 runs on the frozen snapshot, builder-only). **Blocks M2** — no second user gets times we can't defend as correct. | Founder | M2 |
 | ~~OQ-9~~ | ~~Fajr window: Option A, B, or C?~~ **Resolved: Option A (adhan → sunrise).** | — | Closed |
 | OQ-10 | Toronto-only gating — how do we detect and handle out-of-area signups? IP-based with manual override, or self-declared? Affects onboarding. | Eng | M2 |
 | OQ-5 | Comments: valuable encouragement, or the vector by which judgment enters the product? Leaning toward permanently excluded. | PM | M2 |
@@ -546,7 +546,7 @@ Realistic first-launch estimate: **14–19 weeks.** M1 is dogfoodable at week ~5
 | Dhuhr | Sun past zenith | Asr begins | Replaced by Jumu'ah on Friday |
 | Asr | Shadow = 1× (or 2×, Hanafi) object length | Sunset | Second-most missed |
 | Maghrib | Sunset | Isha begins | Shortest window — timing guard critical |
-| Isha | Twilight ends | Midnight (or Fajr) | High-latitude rules apply |
+| Isha | Twilight ends | Next Fajr adhan (D30) | The app accepts a check-in until Fajr so a valid late prayer is never refused. This is a check-in boundary, not a ruling on the preferred time — scholar review (OQ-1) may revise it. High-latitude rules apply. |
 
 ### Toronto-specific notes (43.65° N)
 - **Fajr** swings from roughly 3:30 a.m. (June) to roughly 6:00 a.m. (December). This is the widest swing of any prayer and the reason §9.3 exists.

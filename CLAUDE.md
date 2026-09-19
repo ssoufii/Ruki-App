@@ -132,7 +132,7 @@ server/
 └── jobs/                   # cached AlAdhan calendars, cron
 
 scripts/                    # fetch-prayer-times.sh, etc.
-docs/                       # QA.md, ARCHITECTURE.md, DECISIONS.md
+docs/                       # QA.md, ARCHITECTURE.md  (decisions live in MEMORY.md §Decision Log)
 .claude/commands/           # slash commands
 ```
 
@@ -157,7 +157,7 @@ These have burned other apps. I check them every time I touch related code.
 5. **High latitude breaks naive prayer-time math.** Above ~48° the twilight-angle definitions of Fajr and Isha degenerate in summer. High-latitude rules are required, not a setting for enthusiasts.
 6. **Server timestamp is authoritative** for on-time determination. Device clocks are trivially changed.
 7. **No location column, ever.** Prayer times compute on-device; the server gets times, not places. (PRD §11.2)
-8. **Friday Dhuhr is Jumu'ah** and is treated as its own prayer type.
+8. **Friday Dhuhr is Jumu'ah**, its own prayer type in the data model (`CheckIn.prayer` includes `jumuah`). The MVP engine still emits `.dhuhr` on Fridays; Jumu'ah handling is a fast-follow (PRD §7.10, D32). Never write code that assumes Friday Dhuhr is an ordinary Dhuhr.
 9. **Streaks are visible only to the user.** There is no sharing mechanism and there must never be one. Pause freezes a streak; it never breaks it.
 
 ---

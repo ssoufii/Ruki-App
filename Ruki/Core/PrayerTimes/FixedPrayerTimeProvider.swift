@@ -46,7 +46,9 @@ struct FixedPrayerTimeProvider: PrayerTimeProviding {
 
         // Force unwrap is safe: adding one day to any valid Gregorian date succeeds.
         let nextDay = calendar.date(byAdding: .day, value: 1, to: date)!
-        let nextMidnight = calendar.startOfDay(for: nextDay)
+        // D30: Isha stays open until the next Fajr adhan so a valid late-night
+        // prayer is never refused. Fajr's time is the same every day here.
+        let nextFajrStart = Self.fajr.date(onDayOf: nextDay, calendar: calendar)
 
         return [
             PrayerWindow(
@@ -79,7 +81,7 @@ struct FixedPrayerTimeProvider: PrayerTimeProviding {
                 prayer: .isha, madhab: madhab,
                 start: ishaStart,
                 checkInWindowEnd: ishaStart.addingTimeInterval(30 * 60),
-                end: nextMidnight
+                end: nextFajrStart
             ),
         ]
     }

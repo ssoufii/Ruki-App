@@ -6,7 +6,7 @@ A time-sensitive notification at adhan. A short window to check in with an unfil
 
 Ruki borrows BeReal's check-in mechanic and points it at a real obligation. Existing prayer apps solve the *information* problem — they tell you when prayer times are. None of them solve the *accountability* problem, and a notification you can dismiss is a notification you will dismiss.
 
-> **Status:** Pre-M0. Planning complete, no code written.
+> **Status:** M0 (foundations) complete; M1 (solo loop) not started. Prayer times are a frozen placeholder until the real engine lands (before M2).
 > **MVP scope:** Toronto only · iOS 17+ · Swift 6 · SwiftUI
 
 ---

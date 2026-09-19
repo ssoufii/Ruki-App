@@ -1,6 +1,6 @@
-# Context — Product Requirements Document
+# Ruki — Product Requirements Document
 
-**Working title:** Context
+**Name:** Ruki
 **Platform:** iOS (Swift / SwiftUI), iPhone-first
 **Doc owner:** Lead PM (Claude)
 **Status:** v0.1 — Draft for review
@@ -10,7 +10,7 @@
 
 ## 1. Summary
 
-Context is a small, private social app that helps Muslims stay consistent with the five daily prayers (*salah*) by combining a real-time check-in prompt with a close circle of friends who can see it.
+Ruki is a small, private social app that helps Muslims stay consistent with the five daily prayers (*salah*) by combining a real-time check-in prompt with a close circle of friends who can see it.
 
 The core loop borrows BeReal's spontaneity mechanic: a notification arrives at an unpredictable moment, you have a short window to capture an unfiltered photo, and your friends see it. The difference is that the moment isn't random — it's tied to an actual prayer window, and the photo is proof to yourself and your friends that you prayed.
 
@@ -526,7 +526,7 @@ Realistic first-launch estimate: **14–19 weeks.** M1 is dogfoodable at week ~5
 | # | Question | Owner | Blocking |
 |---|---|---|---|
 | OQ-1 | Which scholars review the concept, and across which madhabs? Needed before public launch. | Founder | M3 |
-| OQ-2 | Is "Context" the final name? It's abstract and doesn't signal the product. Candidates worth testing: *Salah*, *Rakah*, *Five*, *On Time*, *Wudu*. | Founder | M4 |
+| ~~OQ-2~~ | ~~Is "Context" the final name?~~ **Resolved: Ruki.** | — | Closed |
 | OQ-3 | Should Shia 3-session support ship in v1 or v1.1? Affects engine scope. | PM | M1 |
 | ~~OQ-4~~ | ~~Circle cap size?~~ **Resolved: 5 for MVP.** Server-configurable. | — | Closed |
 | **OQ-8** | Which Toronto timetable is our ground truth, and what `tune` offsets match it? ISNA vs MWL, and which masjid do we align to? **Blocks M1** — we cannot ship notifications we can't defend as correct. | Founder | M1 |

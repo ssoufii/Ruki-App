@@ -1,10 +1,10 @@
-# Context
+# Ruki
 
 **An iOS app that helps Muslims stay consistent with the five daily prayers.**
 
 A time-sensitive notification at adhan. A short window to check in with an unfiltered photo. A circle of up to five friends who see it. That's the whole product.
 
-Context borrows BeReal's check-in mechanic and points it at a real obligation. Existing prayer apps solve the *information* problem — they tell you when prayer times are. None of them solve the *accountability* problem, and a notification you can dismiss is a notification you will dismiss.
+Ruki borrows BeReal's check-in mechanic and points it at a real obligation. Existing prayer apps solve the *information* problem — they tell you when prayer times are. None of them solve the *accountability* problem, and a notification you can dismiss is a notification you will dismiss.
 
 > **Status:** Pre-M0. Planning complete, no code written.
 > **MVP scope:** Toronto only · iOS 17+ · Swift 6 · SwiftUI
@@ -46,14 +46,14 @@ Full rationale in [`PRD.md` §4 — Religious Design Principles](./PRD.md).
 | `MEMORY.md` | Decision log and session history. Read every session, updated every session. |
 | `docs/QA.md` | Test plan and the running list of known gaps |
 | `docs/ARCHITECTURE.md` | What was actually built, as opposed to what was planned |
-| `Context/` | App source |
-| `ContextTests/` | Unit tests, incl. `GoldenFiles/` and `TimeEdgeCases/` |
+| `Ruki/` | App source |
+| `RukiTests/` | Unit tests, incl. `GoldenFiles/` and `TimeEdgeCases/` |
 | `server/` | Supabase migrations, RLS policies, edge functions, cached prayer calendars |
 | `scripts/` | `fetch-prayer-times.sh` and other tooling |
 | `.claude/commands/` | Slash commands — see below |
 
 ```
-Context/
+Ruki/
 ├── App/                    # entry point, app-level wiring
 ├── Core/
 │   ├── Clock/              # ClockProviding — injected everywhere
@@ -70,15 +70,15 @@ Context/
 
 ## Getting started
 
+The Xcode project is created manually (no scaffold script) via **File → New → Project… → iOS → App**, saved at the repo root as `Ruki.xcodeproj`, with SwiftUI interface, Swift language, storage set to None, and tests included.
+
 ```bash
-bash bootstrap.sh context
-cd context
-cp .env.example .env        # fill in Supabase + APNs credentials
-git init && git add -A && git commit -m "scaffold"
-open Context.xcodeproj
+open Ruki.xcodeproj
 ```
 
-**Requirements:** Xcode 16+, iOS 17 deployment target, a Supabase project, an Apple Developer account with the `com.apple.developer.usernotifications.time-sensitive` entitlement.
+When you add Supabase later, copy `.env.example` to `.env` and fill in Supabase + APNs credentials before running.
+
+**Requirements:** Xcode 16+, iOS 17 deployment target, a Supabase project (for M2+), an Apple Developer account with the `com.apple.developer.usernotifications.time-sensitive` entitlement (for the Time-Sensitive notification and for TestFlight/App Review — not needed for Simulator development).
 
 ### Xcode project format
 

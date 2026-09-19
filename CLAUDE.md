@@ -34,7 +34,7 @@ Auto-loaded by Claude Code at the start of every session.
 
 ## Project
 
-**Context** — an iOS app (Swift/SwiftUI) that helps Muslims stay consistent with the five daily prayers. BeReal's spontaneity mechanic (unpredictable prompt, short window, unfiltered photo, friends-only feed) applied to prayer check-ins.
+**Ruki** — an iOS app (Swift/SwiftUI) that helps Muslims stay consistent with the five daily prayers. BeReal's spontaneity mechanic (unpredictable prompt, short window, unfiltered photo, friends-only feed) applied to prayer check-ins.
 
 Canonical spec: `PRD.md`. If this file and the PRD disagree, the PRD wins on *what* to build; this file wins on *how* to work.
 
@@ -100,7 +100,7 @@ If for any reason synchronized groups can't be used, switch to **XcodeGen** (`pr
 
 ### Repo layout
 ```
-Context/
+Ruki/
 ├── App/                    # entry point, app-level wiring
 ├── Core/
 │   ├── Clock/              # ClockProviding — inject everywhere
@@ -118,13 +118,13 @@ Context/
 ├── DesignSystem/
 └── Resources/
 
-ContextTests/
+RukiTests/
 ├── GoldenFiles/            # full-year Toronto times vs. reference timetable
 ├── TimeEdgeCases/          # DST, solstices, Maghrib invariant, leap year
 ├── Core/
 └── Features/
 
-ContextUITests/
+RukiUITests/
 
 server/
 ├── functions/              # Supabase edge functions (APNs send, etc.)

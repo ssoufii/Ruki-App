@@ -10,7 +10,7 @@ Read alongside `CLAUDE.md` at the start of every session. Update at the end of e
 **Last session:** 2026-09-19 (session 4) — verified M0, fixed the defects that surfaced, resolved the open decisions the user delegated, created `docs/` and `.claude/commands/`. Session 3 (the M0 build) never updated this file; its entry below is reconstructed from the commit.
 **Next action:** Start M1 (solo loop). No decision blocks it. MVP backlog (65 stories, Epics 01–13, milestones M0–M3) is in GitHub Issues. The real prayer-time engine + OQ-8 (Epic 13) is the *first item of M2* — no friend can be added on frozen times (D27).
 
-**What exists:** Xcode project (file-system synchronized groups, iOS 17.0, Swift 6, default actor isolation `nonisolated`); `ClockProviding`/`SystemClock`; protocol boundaries + fakes for prayer times, notifications, persistence, camera; `FixedPrayerTimeProvider` (D27); 15 test executions / 13 test functions (`RukiTests`); CI on GitHub Actions (passing on `a39bd3e`; the latest local changes are uncommitted and not yet through CI); `docs/QA.md`, `docs/ARCHITECTURE.md`, `.claude/commands/`.
+**What exists:** Xcode project (file-system synchronized groups, iOS 17.0, Swift 6, default actor isolation `nonisolated`); `ClockProviding`/`SystemClock`; protocol boundaries + fakes for prayer times, notifications, persistence, camera; `FixedPrayerTimeProvider` (D27); 15 test executions / 13 test functions (`RukiTests`); CI on GitHub Actions (passing on `913ad8d`); `docs/QA.md`, `docs/ARCHITECTURE.md`, `.claude/commands/`.
 **What does not exist:** any M1 feature, any UI beyond the Xcode template `ContentView`, any backend.
 
 ---
@@ -143,7 +143,7 @@ User asked for a status, then to run the tests and update this file, then delega
 - `scripts/check-no-date.sh` — pass.
 - `xcodebuild test -only-testing:RukiTests`, iPhone 17 simulator, Xcode 26.3, **fresh DerivedData**: 15 executions / 13 functions, 0 failed, zero compiler warnings. (The device-level count is per-argument; the top-level count is per-function — that was the earlier 8-vs-7 discrepancy.)
 - Release configuration build for the simulator — succeeded, zero warnings.
-- CI on GitHub passed for `a39bd3e` (the M0 commit). **The changes from this session are uncommitted, so CI has not seen them.**
+- CI on GitHub (`macos-15`) passed for both `a39bd3e` (M0) and `913ad8d` (this session's changes, pushed after the local run above).
 
 **NOT tested:**
 - **Anything seasonal.** The fixed provider returns the same wall-clock times every day, so the year sweep proves the invariant's shape, not its safety: it cannot see Maghrib shrinking in winter, Fajr drifting, or Isha past 10 p.m. Real coverage waits on the real engine and full-year golden files (M2, first item).

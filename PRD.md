@@ -62,7 +62,7 @@ Performing worship for the sake of being seen is theologically serious. This app
 
 - No public feed, no discovery, no strangers. Friends must be mutually approved.
 - No global leaderboards, no ranking of friends by consistency, ever.
-- Streaks are **private to the user by default**. Sharing a streak is opt-in and reciprocal.
+- Streaks are **visible only to the user. There is no mechanism to share one.** Not opt-in, not reciprocal, not screenshot-prompted. A streak another person can see is a number you are performing for.
 - No like counts, no reaction counts displayed as a number.
 - Copy throughout is framed as *"I showed up"*, never *"look how devoted I am."*
 - Onboarding includes an explicit screen about intention (*niyyah*) and the risk of riya'. Users who don't want the social layer can run the app fully solo.
@@ -121,7 +121,8 @@ Consistent already. Joins because a friend asked. Provides the social gravity th
 | **Missed** | No check-in before the Prayer Window closed. Stored **locally only**. Never transmitted. Never rendered to anyone but the user. |
 | **Circle** | A user's mutually-approved friends. Cap of 25 in v1 (see OQ-4). |
 | **Pause** | RDP-3 state. All prompts suppressed, streak frozen, nothing visible externally. |
-| **Streak** | Consecutive days with all obligatory prayers checked in. Private by default. |
+| **Streak** | Consecutive obligatory prayers checked in since the last missed one. Counted in prayers, not days. Visible only to the user. |
+| **Post lifetime** | A check-in is visible to friends only during its prayer's era — from posting until the *next* prayer begins. Then it's gone from the feed and hard-deleted from storage. |
 
 ---
 
@@ -171,17 +172,43 @@ See §8. Fully on-device, offline-capable.
   - Watch in M4: with a 5-cap, a user whose friends are inactive has a dead feed. Track how many users have ≥2 *active* friends.
 
 ### 7.6 Feed — P0
-- Reverse-chronological, friends only, last 24 hours only.
+- Reverse-chronological, friends only.
+- **Posts live for one prayer's era.** A check-in is visible from the moment it's posted until the *next* prayer begins, then disappears from the feed and is hard-deleted from storage. Asr posts are gone once Maghrib starts. There is no archive, no history of friends' posts, nothing to scroll back through.
+  - **Why until the next prayer rather than the prayer's own window:** if Fajr posts vanished at sunrise, nobody who woke after ~5:30 a.m. in summer would ever see one. Fajr is the hardest prayer and the one where seeing that your friends showed up matters most. Tying visibility to the next prayer keeps posts ephemeral while giving everyone a real chance to see them.
+  - Consequence: post lifetimes are uneven (Isha's stretch is long, Maghrib's is short). Accepted. Evenness isn't worth an archive.
+  - This is stricter than BeReal's 24 hours and it's deliberate: it removes any reason to browse, shrinks the data-at-rest surface (§11), and means a photo exists on our servers for hours rather than a day.
 - Each card: photo(s), friend name, prayer name, relative time, on-time/late marker, retake count.
 - **You cannot see today's feed until you have checked in for the current prayer window.** Directly lifted from BeReal and it is the mechanic that makes the loop work. Blurred until you post.
-- Reactions: a small fixed set of supportive responses (e.g. *masha'Allah*, *jazakAllah khayr*, a heart). Counts are shown to the poster only, never aggregated publicly.
+- Reactions: **a single heart.** No reaction set, no emoji picker, no choosing. Tap or don't.
+  - **Gated on having checked in for that prayer.** You can heart a friend's Asr post only if you've checked in for Asr yourself. Same principle as the blurred feed: you participate before you respond.
+  - The poster sees who hearted. No count is displayed to anyone else, and no count is aggregated across posts or shown on a profile.
+  - One heart per person per post. No stacking, no removing-and-re-adding for attention.
+  - Rationale for one option rather than several: a set of responses invites choosing *which* is appropriate, which imports judgment into a gesture that should carry none. A heart means "I saw you." Nothing more is needed and anything more is a ranking.
+  - **Known cost:** because the gate is per-prayer, missing a prayer means you can't heart that prayer's posts. A friend who normally hearts and suddenly doesn't is a weak inference channel about your absence (RDP-2). It's much weaker than a visible gap marker and it's indistinguishable from simply not opening the app, so it's acceptable — but it's the only place absence has any friend-visible consequence at all, so watch it in M4 and don't add anything that sharpens the signal.
 - No comments in v1 (see OQ-5).
 
-### 7.7 Personal History — P0
-- Calendar grid, one row per prayer, one column per day.
-- Rolling 30-day on-time rate, per-prayer breakdown (the "your Fajr is the problem" insight).
-- Fully private. No export to friends. No screenshot-to-share affordance in v1.
-- Tone rule: the history view describes, it never scolds. No red, no "FAILED," no guilt copy.
+### 7.7 Your Profile & History — P0
+
+Everything in this section is **visible only to you.** No part of it is shareable, and there is no mechanism to make it shareable. What friends see of you is your name, your avatar, and your posts while they're live. Nothing else.
+
+#### Streak
+- **Definition: consecutive obligatory prayers checked in since your last missed one.** Counted in prayers, not days. "47 salahs" rather than "9 days."
+- Counting in prayers is the better unit. A day-streak is all-or-nothing across five chances and reads as brutal; a prayer count moves five times a day, so progress is visible and a reset re-accumulates at a pace you can feel.
+- **A late check-in does not break the streak.** Late still counts (§7.4). It's marked late in your calendar but the chain holds.
+- **Pause does not break the streak.** Prayers during a pause are neither counted nor missed — the chain is frozen and resumes where it left off (RDP-3). This is non-negotiable: a woman returning from her period must not find her streak zeroed.
+- **A prayer you privately mark as prayed after the window closed counts.** The whole app is self-attestation; refusing to believe the user's own private record would be the app calling them a liar.
+- Shown alongside: **lifetime prayers checked in** and **30-day on-time rate.** Both are deliberate. A streak is the only metric here that can go to zero in one moment, and R9 is that the reset reads as erasure. The lifetime total never resets and the 30-day rate degrades gradually, so a broken streak costs you one number out of three.
+- Reset copy is forward-looking, never punitive: *"Streak reset. Tomorrow's Fajr is at 5:12."* Never "you lost your streak," never red, never an exclamation mark.
+
+#### Calendar
+- Grid: one row per prayer, one column per day. **Every check-in you've ever made is kept**, regardless of the fact that your post left your friends' feeds hours after you made it. The photo may be gone from the server; the record that you prayed is yours and it stays.
+- States per cell: on time · late · missed · paused. **Paused is visually distinct from missed** and is never styled as a failure.
+- Per-prayer breakdown so the "your Fajr is the problem" insight is legible.
+- Tone rule: the calendar describes, it never scolds. No red, no "FAILED," no streak-shaming, no guilt copy anywhere.
+
+#### Storage
+- All of this lives **on-device** (SwiftData) and is never uploaded. The server holds a check-in only until the next prayer begins.
+- Consequence to resolve: your history doesn't survive losing your phone, and doesn't follow you to a new one. That's the price of not storing a religious-practice history server-side, and it's the right trade for MVP. Encrypted local backup or an on-device export is the fix, not a server copy. See OQ-6.
 
 ### 7.8 Pause — P0
 RDP-3. Settings and long-press on the app's main action. Two taps maximum.
@@ -348,7 +375,7 @@ Hybrid, because both approaches alone are broken:
 
 **Services:**
 - Auth: Sign in with Apple + phone OTP.
-- Storage: photos in object storage, short-lived signed URLs, hard delete at 24h+grace via scheduled job.
+- Storage: photos in object storage, short-lived signed URLs, hard delete at the next prayer's start (+ short grace) via scheduled job.
 - Push: APNs via edge function, cron-driven from precomputed prompt schedule.
 - No analytics SDK that phones home religious-practice data. Self-hosted, aggregate-only, opt-in. See §11.
 
@@ -364,6 +391,7 @@ Friendship  userA, userB, status(pending|accepted|blocked), createdAt
 CheckIn     id, userID, prayer(fajr|dhuhr|asr|maghrib|isha|jumuah),
             prayedAt, promptedAt, isLate, retakeCount, caption?,
             frontPhotoKey?, rearPhotoKey, expiresAt
+            // expiresAt = start of the NEXT prayer. Hard delete at that time.
 
 Reaction    id, checkInID, userID, kind
 
@@ -394,14 +422,14 @@ Muslims are surveilled, detained, and persecuted on the basis of religious pract
 - **Never store coordinates server-side.** Prayer times are computed on-device. The server receives a *prompt schedule* (times only), not a location. This is why there is no location column.
 - Photos encrypted at rest, short-lived signed URLs, hard delete at expiry.
 - No third-party analytics, ad SDKs, or attribution SDKs. None.
-- Minimal retention: check-ins expire from the server at 24h. Long-term history lives on-device.
+- Minimal retention: a check-in is deleted from the server when the next prayer begins — typically a few hours, not a day. The user's own history and streak live on-device and are never uploaded.
 - Evaluate E2E encryption of photo payloads for v2 — the server does not need to be able to read them. Note the cost: it complicates moderation and multi-device.
 - Publish a transparency policy stating what we hold and what we would be able to hand over. The honest answer should be "very little."
 
 ### 11.3 Safety & moderation
 - Report/block on every card. Report reasons kept short and specific.
 - Server-side hash check against known CSAM databases on upload — non-negotiable, and required by our storage providers regardless.
-- Because content is friends-only and expires in 24h, our moderation surface is small. Reports of abuse between mutual friends are handled by account action, not content review.
+- Because content is friends-only and expires within hours, our moderation surface is very small. Note the tradeoff: by the time a report is reviewed the content is usually gone, so reports of abuse between mutual friends are handled by account action rather than content review. Retain reported items briefly past expiry for this purpose, and say so in the privacy policy.
 - Screenshot detection → notify the photo's owner.
 - Minimum age 13; if we cannot get the age-gating right, raise to 16. Given the audience skews young this needs real attention, not a birthdate field.
 
@@ -484,7 +512,8 @@ Realistic first-launch estimate: **14–19 weeks.** M1 is dogfoodable at week ~5
 | R2b | Fajr window marks genuine prayers as Late, users feel judged | High | Resolve OQ-9 toward Option A; measure Fajr on-time rate in M4 before launch |
 | R2c | We read as just another adhan notification and get dismissed like one | High | Copy and notification design must foreground the check-in and the circle, not the time |
 | R3 | Notification doesn't fire → core loop is dead | High | Hybrid push + local, Time-Sensitive entitlement, delivery telemetry, 64-notification cap test |
-| R4 | Data breach exposes religious practice + social graph | **Critical** | §11: no server-side location, 24h expiry, no third-party SDKs, E2E for v2 |
+| R4 | Data breach exposes religious practice + social graph | **Critical** | §11: no server-side location, per-prayer expiry (hours, not days), no third-party SDKs, E2E for v2 |
+| R9 | Streak reset after a long run feels punitive and triggers churn | High | Show lifetime total and 30-day rate alongside the streak so a reset erases nothing; neutral copy; measure churn-after-reset in M4 |
 | R5 | Guilt spiral — user misses prayers, feels judged, deletes app | High | RDP-2 (never broadcast absence), warm copy, pause feature, no punitive UI |
 | R6 | Sect/madhab differences alienate a segment | Medium | Configurable everything, no defaults presented as correct |
 | R7 | Solo users churn because nobody they know is on it | High | App must be genuinely valuable with zero friends; invite flow is easy but never gated |

@@ -158,7 +158,7 @@ These have burned other apps. I check them every time I touch related code.
 6. **Server timestamp is authoritative** for on-time determination. Device clocks are trivially changed.
 7. **No location column, ever.** Prayer times compute on-device; the server gets times, not places. (PRD §11.2)
 8. **Friday Dhuhr is Jumu'ah** and is treated as its own prayer type.
-9. **Streaks are private by default.** Sharing is opt-in and reciprocal.
+9. **Streaks are visible only to the user.** There is no sharing mechanism and there must never be one. Pause freezes a streak; it never breaks it.
 
 ---
 

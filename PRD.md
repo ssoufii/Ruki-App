@@ -308,7 +308,7 @@ After the Check-in Window closes, check-in remains available until the *prayer w
 **Invariant to assert in code and test:** `checkInWindow < (prayerEnd - prayerStart)` for every prayer, every day of the year, in Toronto. Maghrib is the binding case. If this is ever violated, clamp the check-in window to the prayer window and log it.
 
 ### 9.3 Fajr — the 30-minute window does not work here
-This needs a decision before M1.
+**Resolved 2026-09-19: Option A.** Fajr's Check-in Window runs adhan → sunrise.
 
 Toronto's Fajr moves dramatically across the year. Near the summer solstice, Fajr is roughly **3:30–4:00 a.m.** with sunrise around 5:35 a.m. A rigid 30-minute window means an on-time check-in requires being awake and finished praying by about 4:10 a.m. In midwinter, Fajr is closer to 6:00 a.m. with a similarly short runway to sunrise.
 
@@ -318,11 +318,11 @@ Three options:
 
 | Option | Description | Trade-off |
 |---|---|---|
-| **A (recommended)** | Fajr's Check-in Window runs **adhan → sunrise**. On time means "before sunrise," which is the actual fiqh boundary. | Window is 1–2h, much softer than other prayers. Inconsistent, but correctly inconsistent. |
+| **A — chosen** | Fajr's Check-in Window runs **adhan → sunrise**. On time means "before sunrise," which is the actual fiqh boundary. | Window is 1–2h, much softer than other prayers. Inconsistent, but correctly inconsistent. |
 | B | Fixed 30 min, but the *prompt* fires at a user-set wake time rather than adhan. | Preserves symmetry; requires per-user config in onboarding. |
 | C | Fixed 30 min from adhan, same as other prayers. | Simple. Will mark most real Fajr prayers as Late. Not recommended. |
 
-Option A also lets us keep a single notification. Flagged as **OQ-9**.
+Option A also lets us keep a single notification.
 
 Independent of the above: the Fajr prompt is Time-Sensitive with a distinct sound and does not respect Sleep Focus, and users can disable it entirely without disabling the other four. Some people have a working Fajr routine and don't want a 4 a.m. notification. Never force it.
 
@@ -530,7 +530,7 @@ Realistic first-launch estimate: **14–19 weeks.** M1 is dogfoodable at week ~5
 | OQ-3 | Should Shia 3-session support ship in v1 or v1.1? Affects engine scope. | PM | M1 |
 | ~~OQ-4~~ | ~~Circle cap size?~~ **Resolved: 5 for MVP.** Server-configurable. | — | Closed |
 | **OQ-8** | Which Toronto timetable is our ground truth, and what `tune` offsets match it? ISNA vs MWL, and which masjid do we align to? **Blocks M1** — we cannot ship notifications we can't defend as correct. | Founder | M1 |
-| **OQ-9** | Fajr window: Option A (adhan → sunrise), B (user-set prompt time), or C (fixed 30 min)? Recommending A. **Blocks M1.** | PM | M1 |
+| ~~OQ-9~~ | ~~Fajr window: Option A, B, or C?~~ **Resolved: Option A (adhan → sunrise).** | — | Closed |
 | OQ-10 | Toronto-only gating — how do we detect and handle out-of-area signups? IP-based with manual override, or self-declared? Affects onboarding. | Eng | M2 |
 | OQ-5 | Comments: valuable encouragement, or the vector by which judgment enters the product? Leaning toward permanently excluded. | PM | M2 |
 | OQ-6 | Should missed prayers sync across a user's own devices? Convenient, but it means they leave the device. | Eng | M2 |

@@ -8,7 +8,7 @@ Read alongside `CLAUDE.md` at the start of every session. Update at the end of e
 
 **Phase:** Pre-M0. Planning complete, no code written.
 **Last session:** 2026-08-18 (session 2) — timing model, scope, and friend cap revised.
-**Next action:** Resolve **OQ-8** (Toronto reference timetable) and **OQ-9** (Fajr window) — both block M1. Then begin M0: Xcode project, SPM setup, `ClockProviding`, `PrayerTimeProviding`, full-year Toronto golden-file tests.
+**Next action:** OQ-9 resolved (D17). MVP backlog (65 stories, Epics 01–13, milestones M0–M3) approved and pushed to GitHub Issues. Build order: Epic 01 (foundations) → Epic 02 (fixed prayer-time provider, D27) → M1 solo loop. OQ-8 and the real AlAdhan engine are deferred to Epic 13, required before M2/TestFlight.
 
 **Nothing is built yet.** No repo, no Xcode project, no backend account.
 
@@ -42,7 +42,7 @@ Each entry: what was decided, why, and what would make us revisit. Do not silent
 | D14 | `ClockProviding` injected everywhere; no direct `Date()` | Every serious bug in this product is a time bug. Untestable time logic = unfindable bugs. | Never |
 | **D15** | **Prompt fires at adhan, not a randomized offset** — *supersedes the randomized algorithm in D-original §9* | Aligns with *awwal al-waqt* (praying early in the window is preferred); legible to users; creates simultaneous city-wide check-in bursts that make the feed feel alive. Cost: we lose the anti-pre-staging property. Acceptable — we never claimed to verify prayers. | Users report the prompt is indistinguishable from their existing adhan app |
 | **D16** | **Check-in window 30 min; 20 min for Maghrib** | Maghrib's own prayer window is short; 30 min would consume most of it. Invariant `checkInWindow < prayerWindow` must hold all 365 days. | — |
-| **D17** | **Fajr cannot use a fixed 30-min window** | Toronto Fajr is ~3:30 a.m. in June. A 30-min window would mark most genuine Fajr prayers as Late → guilt spiral (R5). Recommending Option A: window runs adhan → sunrise, matching the actual fiqh boundary. **Unresolved — OQ-9, blocks M1.** | — |
+| **D17** | **Fajr cannot use a fixed 30-min window — resolved: Option A** | Toronto Fajr is ~3:30 a.m. in June. A 30-min window would mark most genuine Fajr prayers as Late → guilt spiral (R5). **Resolved 2026-09-19: window runs adhan → sunrise**, matching the actual fiqh boundary. | — |
 | **D18** | **Friend cap = 5 for MVP** (supersedes 25) | Resolves OQ-4 toward intimacy. Five people is a circle, not an audience — the strongest structural defence against riya'. Server-configurable so we can raise it. | M4 shows dead feeds from inactive friends |
 | **D19** | **Toronto-only for MVP** | Removes time-zone, date-line, and high-latitude QA surface entirely. Lets us fetch prayer times once centrally instead of per-user. Out-of-area users get a waitlist, not wrong times. | Post-MVP; multi-city is priority #1 after launch |
 | **D20** | **AlAdhan API, fetched server-side and cached — not called from the device** | Zero third-party calls from user devices (privacy, D8); no dependency on AlAdhan uptime at prayer time; one request/year instead of one per user per day; central `tune` corrections without a client release. Adhan-Swift bundled as offline fallback. | AlAdhan accuracy or availability problems |
@@ -52,6 +52,7 @@ Each entry: what was decided, why, and what would make us revisit. Do not silent
 | **D25** | **Streak counts consecutive prayers since the last miss, not days** | Five chances a day means a day-streak is all-or-nothing and reads as brutal. A prayer count moves five times a day, so progress is visible and a reset re-accumulates at a felt pace. Late counts; pause freezes rather than breaks (RDP-3); a privately self-marked prayer counts. Shown with lifetime total and 30-day rate so a reset erases one number out of three, not everything. | Churn-after-reset shows up in M4 |
 | **D26** | **The user's own check-in history is kept forever, on-device only** | Your post leaving your friends' feeds and your record of having prayed are different things. The photo goes; the fact stays. On-device because a server-side religious-practice history is the dangerous artifact from D8. Cost: history doesn't survive device loss — fix with encrypted local backup, never a server copy. | Never (the on-device part) |
 | **D22** | **Reactions are a single heart, gated on having checked in for that prayer** | One option rather than a set: choosing between responses imports judgment into a gesture that should carry none. A heart means "I saw you." The per-prayer gate matches the blurred-feed principle — participate before you respond. Poster sees who hearted; no count shown to anyone else, none aggregated. | A heart proves too thin to feel like encouragement |
+| **D27** | **MVP builds against a frozen, hand-captured prayer-time snapshot instead of live AlAdhan** | Real engine (D20) needs OQ-8 resolved first and adds a server fetch job before any code can run. A `FixedPrayerTimeProvider` conforming to the same `PrayerTimeProviding` protocol (D3) unblocks M0/M1 immediately with today's real Toronto times, frozen. **Explicit constraint: never ships to a user beyond the builder** — Toronto Fajr swings ~3:30 a.m.–6:00 a.m. across the year, so frozen times go wrong fast in either direction. Real engine work tracked separately, required before M2/TestFlight. | Any build reaching a second real user before the real engine (D20) lands |
 
 ---
 
@@ -75,8 +76,8 @@ Each entry: what was decided, why, and what would make us revisit. Do not silent
 - **OQ-5** Comments: permanently excluded?
 - **OQ-6** Should on-device missed-prayer records sync across the user's own devices?
 - **OQ-7** Does the blurred-feed mechanic incentivize checking in without having prayed? *Test in M4.*
-- **OQ-8** Which Toronto timetable is ground truth, and what `tune` offsets match it? *Blocks M1.*
-- **OQ-9** Fajr window — Option A (adhan → sunrise, recommended), B (user-set prompt time), or C (fixed 30 min)? *Blocks M1.*
+- **OQ-8** Which Toronto timetable is ground truth, and what `tune` offsets match it? No longer blocks M1 (D27) — needed before the real engine ships, pre-M2/TestFlight.
+- ~~**OQ-9**~~ Fajr window. **Resolved: Option A (adhan → sunrise).**
 - **OQ-10** How do we detect and gate out-of-Toronto signups?
 
 ---

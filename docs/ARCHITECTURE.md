@@ -49,6 +49,9 @@ Every external dependency sits behind a protocol with a test fake in `RukiTests/
 ## Today screen (`Ruki/Features/Today/`, T2)
 `TodayViewModel` (`@MainActor @Observable`) computes today's five prayer rows, a current/next-prayer headline with a gentle countdown, and which row (if any) is open right now — everything derived from `clock.now()`, `PrayerTimeline`, `UserSettings`, and a `SlotResolver` built from `HistoryStore`'s snapshots. `refresh()` is called on appear and every 60 seconds (`TodayView`'s `Timer.publish` tick only triggers a re-read of `clock.now()`; it never stands in for it). Each row's `Status` carries a paired label + SF Symbol — never colour alone. Checking in and pausing are only doorways here: tapping either shows `ComingSoonScreen` until RUKI-019 and RUKI-034 build the real flows.
 
+## Onboarding (`Ruki/Features/Onboarding/`)
+`OnboardingFlow` sequences madhab (RUKI-009, partial) → notification permission (RUKI-010) → intention (RUKI-011) → add-friends (RUKI-012), matching PRD §7.1. `AddFriendsView` is the only screen that mentions friends anywhere in M1 — there is no add-friend mechanism yet (Circle is M2), so its "Add friends" button opens `ComingSoonScreen` and "Skip for now" is the one fully-working path; onboarding always completes with zero friends. `RukiTests/Integration/SoloFlowTests.swift` proves the prompt/capture-recording/streak/history flow works end-to-end for a fresh solo account and that the types it touches (`PromptInputs`, `CheckInSnapshot`) carry no friend/circle field.
+
 ## Deliberate limitations
 - **`FixedPrayerTimeProvider` is one captured day (2026-09-19, approximate ISNA) reused for every date.** It must not reach anyone but the builder. The real engine is the first item of M2.
 - `Prayer` has five cases; Jumu'ah is not an engine case (D32). 3-session combining is not modelled (D31).

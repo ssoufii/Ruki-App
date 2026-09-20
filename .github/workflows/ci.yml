@@ -50,6 +50,20 @@ jobs:
       - name: No compiler warnings (Debug)
         run: ./scripts/check-no-warnings.sh test.log
 
+      # The Simulator build compiles a placeholder camera, so the real AVFoundation
+      # code (AVCameraProvider) is only compiled against the device SDK. No signing
+      # needed just to type-check it.
+      - name: Device SDK build (compiles the real camera code)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Ruki.xcodeproj \
+            -scheme Ruki \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee device.log
+          ./scripts/check-no-warnings.sh device.log
+
       - name: Release build, no warnings
         run: |
           set -o pipefail

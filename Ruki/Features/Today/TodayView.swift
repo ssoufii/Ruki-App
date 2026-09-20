@@ -32,7 +32,7 @@ struct TodayView: View {
     /// RUKI-037: "Delete my data on this device", forwarded to
     /// `AppEnvironment` — wiping SwiftData and cancelling notifications
     /// needs the scheduler this view never otherwise touches.
-    let onDeleteAllData: () async -> Void
+    let onDeleteAllData: () async -> Bool
 
     /// T3 DEBUG tools only, forwarded through to `SettingsViewModel` — see
     /// its own doc comment for why this is threaded unconditionally.
@@ -51,7 +51,7 @@ struct TodayView: View {
         cameraProvider: any CameraProviding,
         notificationAuthorizer: any NotificationAuthorizing,
         onScheduleAffectingChange: @escaping () async -> Void,
-        onDeleteAllData: @escaping () async -> Void,
+        onDeleteAllData: @escaping () async -> Bool,
         onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) {
         _viewModel = State(
@@ -247,6 +247,6 @@ private struct PrayerRowView: View {
         cameraProvider: environment.cameraProvider,
         notificationAuthorizer: environment.notificationAuthorizer,
         onScheduleAffectingChange: {},
-        onDeleteAllData: {}
+        onDeleteAllData: { true }
     )
 }

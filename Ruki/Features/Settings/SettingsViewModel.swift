@@ -15,7 +15,10 @@ final class SettingsViewModel {
     private let historyStore: HistoryStore
     private let clock: any ClockProviding
     private let onScheduleAffectingChange: () async -> Void
-    private let onDeleteAllData: () async -> Void
+    private let onDeleteAllData: () async -> Bool
+    /// Set when a delete didn't happen, so the view can say so instead of
+    /// leaving the person to assume it worked.
+    var deleteFailed = false
     /// T3 DEBUG tools only: fires a one-off test notification. Threaded
     /// unconditionally through init like every other callback here — the
     /// Settings section that ever calls it is `#if DEBUG`-gated, so this is
@@ -62,7 +65,7 @@ final class SettingsViewModel {
         historyStore: HistoryStore,
         clock: any ClockProviding,
         onScheduleAffectingChange: @escaping () async -> Void,
-        onDeleteAllData: @escaping () async -> Void,
+        onDeleteAllData: @escaping () async -> Bool,
         onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) {
         self.userSettings = userSettings
@@ -96,7 +99,9 @@ final class SettingsViewModel {
     /// The confirmation step lives in `SettingsView`; by the time this is
     /// called the user has already agreed.
     func deleteAllData() {
-        Task { await onDeleteAllData() }
+        Task {
+            if await onDeleteAllData() == false { deleteFailed = true }
+        }
     }
 
     /// A fresh temp file each call rather than a cached one: cheap (this

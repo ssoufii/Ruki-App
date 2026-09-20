@@ -58,7 +58,11 @@ final class UserNotificationScheduler: NotificationScheduling, @unchecked Sendab
     private func request(for spec: PromptSpec, soundEnabled: Bool) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = spec.prayer.displayName
-        content.body = String(localized: "Time for \(spec.prayer.displayName).")
+        // R2c: this must not read like every other adhan notification. It names the
+        // check-in, and for Fajr says how long there is — with no scolding anywhere.
+        content.body = spec.prayer == .fajr
+            ? String(localized: "Fajr has begun. Check in whenever you've prayed — you have until sunrise.")
+            : String(localized: "\(spec.prayer.displayName) has begun. Check in when you've prayed.")
         content.sound = soundEnabled ? .default : nil
         // Pierces Focus/DND only once the Time Sensitive Notifications
         // capability is added in Xcode (D36) — safe to set unconditionally

@@ -57,10 +57,20 @@ final class AppEnvironment {
     /// cancels every pending prompt outright (a re-plan would just schedule
     /// fresh ones against the reset-but-still-enabled defaults), then resets
     /// settings — which sends the router back to onboarding.
-    func deleteAllOnDeviceData() async {
-        try? historyStore.deleteAll()
+    /// Returns `false`, having changed nothing else, if the history wipe fails.
+    /// Resetting settings after a failed wipe would send the person back to
+    /// onboarding as if their data were gone while it was still on the device —
+    /// the wrong way to fail a "delete my data" control. Clearing pending
+    /// prompts is best-effort: a leftover prompt is not personal data.
+    func deleteAllOnDeviceData() async -> Bool {
+        do {
+            try historyStore.deleteAll()
+        } catch {
+            return false
+        }
         try? await notificationScheduler.replacePending(with: [], soundEnabled: userSettings.soundEnabled)
         userSettings.resetToDefaults()
+        return true
     }
 
     /// T3 DEBUG tools: fires one real local notification ~10 seconds out,

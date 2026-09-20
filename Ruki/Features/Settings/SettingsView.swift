@@ -123,6 +123,11 @@ struct SettingsView: View {
         } message: {
             Text("This can't be undone. Your check-ins, private marks, and pauses on this device will be gone.")
         }
+        .alert("Couldn't delete your data", isPresented: $viewModel.deleteFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Nothing was removed. Please try again.")
+        }
     }
 }
 
@@ -146,7 +151,7 @@ private extension NotificationAuthorizationStatus {
             historyStore: environment.historyStore,
             clock: environment.clock,
             onScheduleAffectingChange: {},
-            onDeleteAllData: {}
+            onDeleteAllData: { true }
         )
     )
 }

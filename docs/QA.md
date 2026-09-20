@@ -8,47 +8,59 @@ Strategy and rationale: `PRD.md` §13. This file is the running record of what i
 ./scripts/check-no-date.sh          # no Date() outside SystemClock
 xcodebuild test -project Ruki.xcodeproj -scheme Ruki \
   -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:RukiTests
+./scripts/check-no-warnings.sh <xcodebuild.log>
 ```
-CI (`.github/workflows/ci.yml`) runs both on every PR and push to `main`.
+CI (`.github/workflows/ci.yml`) runs, on Xcode 26.3 (pinned — see D40): the Date check, Debug build + unit tests, a Release build, and a **device-SDK build** (which compiles the real camera code the Simulator build replaces with a placeholder). Zero compiler warnings is enforced on all three builds.
 
-## What is covered (as of 2026-09-20, M1 routine run)
+## M1 verification — 2026-09-20 (Xcode 26.3, iOS Simulator 26.x)
 
-All against `FixedPrayerTimeProvider` unless noted; all run in CI on GitHub Actions (macOS-15, Xcode 16.4).
-
-| Suite | Covers |
+| Level | Result |
 |---|---|
-| `Core/PrayerTimes/FixedPrayerTimeProviderTests` | Check-in invariant on the reference day, Fajr adhan→sunrise (Option A), Maghrib = 20 min, Hanafi Asr later than Standard, window ordering, wall-clock stability |
-| `Core/PrayerTimes/PrayerTimelineTests` | Fajr's `onTimeEnd` ignores the user check-in-window setting (D33); Fajr never reaches `.late` across a 5-minute sweep of its whole window; onTime/closed boundary at sunrise; non-Fajr prayers do honour the setting and do reach `.late` |
-| `TimeEdgeCases/FixedProviderTimeEdgeCaseTests` | Invariant on all 366 days × both madhabs; wall-clock times across both 2026–27 DST transitions; leap day (2028-02-29); Isha ends at next Fajr incl. year rollover (D30); the invariant rejects zero-Late-phase, overrun, and clamped-Fajr windows |
-| `Core/History/StreakCalculatorTests` | Streak counted in prayers not days (D25); late counts identically to on-time; privately-marked-prayed counts; a miss resets current but not lifetime; a paused slot is skipped (freezes, doesn't break); 30-day on-time rate incl. the 30-day cutoff and the nil-until-settled case |
-| `Core/History/SlotResolverTests` | Precedence check-in > mark > pause-overlap > pending/missed; `notTracked` before install; D38 pause-overlap rule incl. mid-window start and open-ended (`endsAt == nil`) pauses; a pause ending before the window starts does not protect it |
-| `Core/History/StreakSummaryPresenterTests` | Reset headline is forward-looking and names the next Fajr time, never "missed"/"failed"; lifetime and 30-day-rate text survive a reset |
-| `Core/Persistence/HistoryStoreTests` | SwiftData round-trip for check-ins/marks/pauses against an in-memory `RukiModelContainer`; one check-in/mark per slot (upsert, not duplicate); `purgeExpiredPhotos` clears photo data at `expiresAt` while the record survives (D26/D37) |
-| `Core/Networking/FriendFacingCheckInTests` | Encoded-JSON keys and `Mirror` reflection both checked against a pause/missed/location denylist (RUKI-035, RDP-2/3, D8); Codable round-trip |
-| `Core/Notifications/PromptPlannerTests` | One spec per slot firing at adhan; `ruki.prompt.` id prefix; disabled prayers excluded; specs sorted by fire date; caps at 64 keeping the earliest-firing notifications (RUKI-016) |
-| `Core/Notifications/PromptSchedulerTests` / `NotificationSchedulingCeilingTests` | `refresh` plans then hands the exact result to the scheduler; honours per-prayer enable/disable; a second `refresh` replaces rather than accumulates; the scheduler itself throws above 64 as a second line of defense; exactly 64 is accepted |
-| Static | `scripts/check-no-date.sh` |
+| **L1 Static** | `check-no-date.sh` pass. No `fatalError`. Two `try!`/`as!`/`!` sites in shipping code, each with a why-comment (in-memory container fallback; `layerClass` cast; `Calendar` date arithmetic); one `.first!` inside a `#Preview` only. No networking (`URLSession`) anywhere. No location/coordinates. No analytics or third-party SDKs; **zero Swift packages**. Imports are Apple frameworks only. |
+| **L2 Build** | Debug (Simulator), Release (Simulator) and Debug (**device SDK**, signing off) all succeed with **zero warnings**. |
+| **L3 Unit tests** | **185 executions, 0 failures** (29 test files under `RukiTests/`), stable across repeated runs. |
+| **L4 Time tests** | DST both directions, leap day, 366-day year sweep × 2 madhabs, Isha→Fajr across year rollover, Toronto-calendar day keys, planner horizon/64-cap, streak/pause overlap. All against the **frozen** provider — see gaps. |
+| **L5 Values red-team** | See below. No release-blocking findings; several notes. |
+| **L6 UI + accessibility** | **Not run.** XCUITest cannot complete on the development machine (launch hangs, `Mach error -308 server died` — same as M0) so `RukiUITests` stays excluded from CI (D29). Compensated by static checks: no `.red`, no `.left`/`.right`/`padding(.left…)` (RTL-safe), no fixed font sizes, every meaningful `Image` labelled or hidden, state carried by symbol + text, not colour. **No automated `performAccessibilityAudit()` exists.** |
+| **L7 Code review** | Focused review of: friend payload, export/delete, notification scheduling, and the camera provider. Found and fixed 4 defects (below). **Not** a line-by-line review of all ~7,000 added lines. |
+| **L8 Phone-only** | Not verifiable off-device. Checklist below. |
 
-Builds verified in CI: Debug (simulator) and Release (simulator), zero compiler warnings, on every push to `m1/**`.
+### Defects found during this verification (all fixed)
+1. **CI toolchain mismatch.** CI defaulted to Xcode 16.4 (Swift 6.1); development is Xcode 26.3 (Swift 6.2). They disagree about actor isolation, so correct code failed CI and ~10 failure emails were sent chasing the wrong compiler. CI now pins 26.3.
+2. **Flaky tests.** 5 `SettingsViewModelTests` slept 10 ms then asserted a fire-and-forget `Task` had run; they failed under load. Replaced with `waitUntil` polling and a barrier for the "does not refresh" cases. Stable over repeated runs.
+3. **Delete could lie.** `deleteAllOnDeviceData()` swallowed errors and reset settings even if the wipe failed, telling the person their data was gone when it wasn't. It now returns `false`, changes nothing else, and Settings shows "Couldn't delete your data — nothing was removed." Tested.
+4. **Camera, three latent bugs (device-only, never runnable in CI):** the live preview would have been **black on multi-cam iPhones** (multi-cam sessions need an explicit preview connection); every check-in after the first would **silently downgrade** to single-camera (graph re-wired on each start); and there was **no multi-cam format / hardware-cost check**. Fixed following Apple's AVMultiCamPiP pattern. **Unverified on hardware.**
+5. Notification copy read like any adhan app ("Time for Asr."); now names the check-in (PRD R2c).
+
+### L5 values red-team (PRD §4, CLAUDE.md domain rules)
+- **Shame:** no red anywhere; no exclamation marks; copy says "no check-in", never "missed/failed"; late = "still counts". ✔
+- **Absence leak (RDP-2):** the only serialisable friend-facing type is `FriendFacingCheckIn` — no pause, missed, or location field, enforced by tests (encoded keys + Mirror). No networking exists in M1, so nothing can leave the device at all. ✔
+- **Pause leak (RDP-3):** same type/tests; pause lives only in `PauseRecord` and the local export. ✔
+- **Camera during prayer (RDP-4):** the camera is reachable only via `CheckInViewModel.affirmPrayed()`, proven with a call-counting fake. ✔
+- **Performance over practice (RDP-1):** the streak, rate and calendar are local views only. The one share surface is `ShareLink` on the user's **own data export** (check-ins, marks, pauses, no photos, no streak number). ✔
+- **Location:** none (no permission, no CoreLocation, no field). ✔
+- **Arbitration (RDP-6):** *known shortfall by design* — no 3-session/combining profile (D31), Jumu'ah treated as Dhuhr (D32), calculation method fixed and read-only (D34). Tracked, not hidden.
+- **Server authority:** N/A in M1 — on-time is decided on-device from the injected clock; must be re-decided server-side in M2 (RDP/CLAUDE rule 6).
+- **Third-party SDKs:** none.
 
 ## Known gaps — do not pretend these are covered
 
-**Blocked on the real prayer engine (Epic 13, first item of M2):**
-- The fixed provider returns *identical* wall-clock times every day, so the 366-day sweep proves the invariant's *shape*, not its *safety*. It cannot catch Maghrib's window shrinking in winter, Fajr swinging 3:30→6:00, or Isha drifting past 10 p.m. Real coverage = full-year golden files × 2 madhabs against the chosen timetable (OQ-8).
-- Solstices and equinoxes.
-- AlAdhan-unavailable → Adhan-Swift fallback tolerance.
-- DST *boundary* behaviour of notification scheduling (the fixed times all fall after 2 a.m., so the 2 a.m. jump never touches them; the March case that lands near a real Fajr is untested).
+**Blocked on the real prayer engine (first item of M2):** everything runs on **one frozen September day** of Toronto times. The 366-day sweep proves the invariant's *shape*, not its *safety*; winter Maghrib, Fajr drift (3:30→6:00), solstices, and AlAdhan-fallback tolerance are untested. Full-year golden files (OQ-8) are the real fix.
 
-**Not yet built, so untested (M1+):** notification delivery matrix (foreground/background/force-quit/restart/Low Power/Focus/DND/permission revoked/airplane/push+local dedup — the 64-cap itself is now unit-tested at the planner/scheduler level, see above); device clock tampering and server-authoritative timestamps; camera and permission-denied paths; storage full. Streak/pause logic and RDP-2/RDP-3 payload leakage are now unit-tested (see above) but only at the logic level — no UI exists yet to verify the tone rules render correctly on screen.
+**Needs a phone (checklist for the person testing):**
+1. Camera permission prompt, and the denied path.
+2. **First thing to check:** on a multi-cam iPhone, the live preview is visible (not black). Then a *second* check-in in the same app run still previews and captures both photos.
+3. Dual capture returns front + rear; Space Only returns rear only; on a non-multi-cam iPhone (e.g. SE) the sequential path works.
+4. Notification permission → prompt at adhan → tap opens the check-in for that prayer. Use Settings ▸ DEBUG: "send a test prompt in 10 s" and the clock-jump buttons; no need to wait for a real adhan.
+5. **Time-Sensitive:** add the *Time Sensitive Notifications* capability (Xcode ▸ Signing & Capabilities) — until then notifications are ordinary and will not pierce Focus/DND (D36). Then verify it does.
+6. Background refresh (Xcode ▸ Debug ▸ simulate the `com.salimsoufi.Ruki.refresh-prompts` task); force-quit, restart, Low Power, airplane mode, permission revoked mid-use.
+7. Export opens the share sheet; "Delete my data" returns to onboarding.
+8. VoiceOver through Today → check-in → history; Dynamic Type up to AX5 (**known:** history-grid cells are a fixed 20 pt); a right-to-left pseudo-language; Reduce Motion.
+9. Prompt tap → posted in under 15 s (RUKI-019) — a timing target that only a device can measure.
 
-**Notification scheduling specifically (RUKI-013/016, landed 2026-09-20):** `PromptPlanner`/`PromptScheduler`/`NotificationSchedulingError` are unit-tested against `FakeNotificationScheduler`. `UserNotificationScheduler` (the real `UNUserNotificationCenter` wrapper) and `SystemNotificationAuthorizer` compile and are exercised only through the protocol/fake in tests — real calendar-trigger firing, `.timeSensitive` actually piercing Focus/DND, and permission-prompt behavior are unverified and can only be checked on a physical device once the Time Sensitive Notifications capability is added in Xcode (D36).
-
-**Not testable in this environment:** physical devices (multi-cam fallback, real Time-Sensitive delivery). `RukiUITests` is still Xcode's empty template and is excluded from CI (D29).
-
-**Accessibility / RTL:** nothing to test yet — no UI. Do it as screens land, not after.
+**Not built (M2+):** server-authoritative timestamps, push + local dedup, sign-in (#8, deferred), friends/feed, account/server-side deletion. iPad is out of scope (D1).
 
 **Product/fiqh, not code:** Isha's end (D30) and the Fajr window (D17) are check-in boundaries chosen to avoid refusing a valid prayer; they are not rulings. Scholar review (OQ-1) is a launch gate.
 
 ## Release gate
-
-`/ship-check` → runs `/time-check` and `/values-check`. A "yes" to any values question (can this shame a user, leak an absence or a pause, reward performance over practice) blocks the release.
+`/ship-check` → runs `/time-check` and `/values-check`. A "yes" to any values question blocks the release.

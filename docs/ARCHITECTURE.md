@@ -63,3 +63,13 @@ Two taps, no reason field: "Pause check-ins" on `TodayView` opens `PauseDuration
 - `Prayer` has five cases; Jumu'ah is not an engine case (D32). 3-session combining is not modelled (D31).
 - `TodayView`'s check-in button still opens `ComingSoonScreen` — no real capture flow exists yet (RUKI-020's camera implementation). Pause (RUKI-034) is real.
 - Background-refresh scheduling runs on app launch, foreground, and pause change (`RukiApp`, T2; `TodayView`'s pause flow, RUKI-034) but still has no settings-change trigger (RUKI-036).
+
+## M1 additions (solo loop)
+- **Time:** `PrayerTimeline` answers "which window is open / what phase / what's next" purely from a provider + `now`; `TorontoCalendar` is the one calendar days are reasoned in; `OffsetClock` (DEBUG only) lets a tester jump to any prayer phase through `ClockProviding`.
+- **History (pure):** `SlotResolver` (check-in > private mark > untracked > paused > pending/missed) → `StreakCalculator` → `StreakSummaryPresenter`. Pause covers any window it overlaps (D38). `CalendarGridBuilder` uses the same resolver.
+- **Persistence:** SwiftData `CheckInRecord` / `PrayerMark` / `PauseRecord` via `HistoryStore`; photos purged at the next prayer's start, records kept forever, on-device only (D26, D37). Export excludes photos.
+- **Notifications:** `PromptPlanner` (≤64) → `PromptScheduler` → `UserNotificationScheduler` (calendar trigger in Toronto's zone, `.timeSensitive`, `ruki.prompt.` prefix); `PromptRefreshCoordinator` keeps a 12-day horizon, refreshed on launch/foreground/settings/pause change and via `BGAppRefreshTask`. Tap routing: `NotificationCoordinator` → `AppRouter`.
+- **Camera:** `CameraProviding` with `AVCameraProvider` (multi-cam wired once; automatic single-camera/sequential fallback; explicit preview connection) and `PlaceholderCameraProvider` for the Simulator. `CameraCaptureStrategyResolver` is the pure decision logic.
+- **UI:** `RukiApp` → `AppEnvironment` (composition root) → `RootView` → onboarding (madhab, notifications, intention, friends-optional) → `TodayView` (rows, check-in, pause, history, settings). `RukiPalette` has no red.
+- **Privacy guard:** `FriendFacingCheckIn` is the only payload type; tests forbid pause/missed/location fields.
+- **CI:** Xcode 26.3 pinned; Debug tests, Release build, and a device-SDK build, all warning-free.

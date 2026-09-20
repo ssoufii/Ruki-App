@@ -36,6 +36,11 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
     private let multiCamSession = AVCaptureMultiCamSession()
     private let singleCamSession = AVCaptureSession()
     private var multiCamConfigured = false
+    /// The multi-cam graph is wired exactly once; later check-ins just restart it.
+    /// Re-wiring an already-wired session fails `canAddInput`, which used to make
+    /// every check-in after the first silently fall back to single-camera.
+    private var multiCamWired = false
+    private var multiCamRearPort: AVCaptureInput.Port?
 
     private var singleCamOutput: AVCapturePhotoOutput?
     private var multiCamFrontOutput: AVCapturePhotoOutput?
@@ -64,7 +69,7 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
         try await performOnSessionQueue {
             guard !self.sessionStarted else { return }
 
-            if AVCaptureMultiCamSession.isMultiCamSupported, self.configureMultiCamSession() {
+            if AVCaptureMultiCamSession.isMultiCamSupported, self.prepareMultiCamSession() {
                 self.multiCamConfigured = true
                 self.multiCamSession.startRunning()
             } else {
@@ -93,8 +98,32 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
     /// why): this method's only caller is already on the main actor, so
     /// there's no isolation to cross.
     @MainActor func makePreviewView() -> AnyView {
-        let session: AVCaptureSession = multiCamConfigured ? multiCamSession : singleCamSession
-        return AnyView(CameraPreviewRepresentable(session: session))
+        AnyView(CameraPreviewRepresentable(attach: { [self] layer in attachPreview(to: layer) }))
+    }
+
+    /// Connects a preview layer to whichever session `startSession()` actually
+    /// started. Decided here, when the view is built, rather than in
+    /// `makePreviewView()`, so it can't pick the wrong session by racing startup.
+    ///
+    /// A multi-cam session's inputs and outputs are wired by hand
+    /// (`addInputWithNoConnections`), and a preview layer gets no automatic
+    /// connection there — assigning `layer.session` would show a black preview.
+    /// It needs `setSessionWithNoConnection` plus an explicit connection from the
+    /// rear camera's port, as in Apple's AVMultiCamPiP sample. Not verifiable on
+    /// the Simulator or in CI (no camera); this is the first thing to check on a
+    /// real phone if the preview is black.
+    @MainActor private func attachPreview(to layer: AVCaptureVideoPreviewLayer) {
+        guard multiCamConfigured, let rearPort = multiCamRearPort else {
+            layer.session = singleCamSession
+            return
+        }
+        layer.setSessionWithNoConnection(multiCamSession)
+        let connection = AVCaptureConnection(inputPort: rearPort, videoPreviewLayer: layer)
+        multiCamSession.beginConfiguration()
+        if multiCamSession.canAddConnection(connection) {
+            multiCamSession.addConnection(connection)
+        }
+        multiCamSession.commitConfiguration()
     }
 
     func capturePhoto(mode: CaptureMode) async throws -> CapturedPhoto {
@@ -121,6 +150,35 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
 
     // MARK: Multi-cam configuration
 
+    /// Wires the multi-cam graph once, then checks it fits the hardware budget.
+    /// `false` (never a throw) means "use the single-camera path instead".
+    /// Only ever called from a block already running on `sessionQueue`.
+    private func prepareMultiCamSession() -> Bool {
+        if !multiCamWired {
+            guard configureMultiCamSession() else { return false }
+            multiCamWired = true
+        }
+        // Two live cameras can exceed what the device can drive; past 1.0 the
+        // session errors at startRunning() without throwing anything here.
+        return multiCamSession.hardwareCost <= 1.0 && multiCamSession.systemPressureCost <= 1.0
+    }
+
+    /// Multi-cam sessions only run on formats flagged `isMultiCamSupported`.
+    /// Picks the largest one up to ~2.8 MP so two live cameras stay inside the
+    /// hardware budget (Apple's AVMultiCamPiP sample does the equivalent).
+    private static func useMultiCamFormat(on device: AVCaptureDevice) -> Bool {
+        func area(_ format: AVCaptureDevice.Format) -> Int {
+            let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+            return Int(d.width) * Int(d.height)
+        }
+        let candidates = device.formats.filter { $0.isMultiCamSupported && area($0) <= 1920 * 1440 }
+        guard let best = candidates.max(by: { area($0) < area($1) }) else { return false }
+        do { try device.lockForConfiguration() } catch { return false }
+        defer { device.unlockForConfiguration() }
+        device.activeFormat = best
+        return true
+    }
+
     /// Follows Apple's documented multi-cam wiring: inputs and outputs are
     /// added with no default connections, then joined explicitly per camera
     /// so each `AVCapturePhotoOutput` only ever sees its own camera's frames.
@@ -144,6 +202,9 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
 
         multiCamSession.addInputWithNoConnections(frontInput)
         multiCamSession.addInputWithNoConnections(rearInput)
+        guard Self.useMultiCamFormat(on: frontDevice), Self.useMultiCamFormat(on: rearDevice) else {
+            return false
+        }
 
         let frontOutput = AVCapturePhotoOutput()
         let rearOutput = AVCapturePhotoOutput()
@@ -172,6 +233,7 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
 
         multiCamFrontOutput = frontOutput
         multiCamRearOutput = rearOutput
+        multiCamRearPort = rearPort
         return true
     }
 
@@ -182,15 +244,17 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
     /// fallback (front, then rear, on hardware without multi-cam, RUKI-021).
     /// Only ever called from a block already running on `sessionQueue`.
     private func configureSingleCamSession(position: AVCaptureDevice.Position) throws {
-        singleCamSession.beginConfiguration()
-        let output = AVCapturePhotoOutput()
-        guard singleCamSession.canAddOutput(output) else {
+        if singleCamOutput == nil {
+            singleCamSession.beginConfiguration()
+            let output = AVCapturePhotoOutput()
+            guard singleCamSession.canAddOutput(output) else {
+                singleCamSession.commitConfiguration()
+                throw CameraError.configurationFailed
+            }
+            singleCamSession.addOutput(output)
+            singleCamOutput = output
             singleCamSession.commitConfiguration()
-            throw CameraError.configurationFailed
         }
-        singleCamSession.addOutput(output)
-        singleCamOutput = output
-        singleCamSession.commitConfiguration()
         try switchSingleCamInput(to: position)
     }
 

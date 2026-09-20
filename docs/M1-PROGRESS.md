@@ -1,6 +1,6 @@
 # M1 Progress
 
-Status: **IN PROGRESS** (change this line to `M1 COMPLETE` only per docs/M1-PLAYBOOK.md §5).
+Status: **M1 COMPLETE** — final verification 2026-09-20 (see `docs/QA.md`); merged to `main`. The routine is paused; nothing further to do.
 
 Statuses: `todo` · `in-progress` · `merged` · `partial` (merged, issue left open) · `blocked` · `deferred`.
 Every story gets its own branch `m1/story-NNN-slug` (tasks: `m1/task-slug`), merged into `m1/integration` only when CI is green.
@@ -99,3 +99,5 @@ Every story gets its own branch `m1/story-NNN-slug` (tasks: `m1/task-slug`), mer
   - **Uncertain about:** whether resolving four concurrent-development merge conflicts by hand (rather than one story waiting for the others to land first) was the right call under the playbook's "one new branch per story" rule — it kept all four moving in parallel rather than serializing them, but it's a heavier merge process than the playbook's examples assume. Flagging per §3 rather than deciding unilaterally that it's fine going forward.
   - **Uncertain about:** whether the recommended #20 fix (class + `DispatchQueue` instead of `actor`) will itself compile cleanly on the first try — it's a different, better-precedented shape than what failed, but unverified until a future run tries it.
   - Stopped after #20 (blocked) and #36 (merged) — well under the 6-branch cap, but #20's diagnosis alone consumed most of this run's budget, and stopping here keeps `m1/integration` green and this file accurate rather than starting a third story with less room to see it through.
+
+- 2026-09-20 (interactive, session 9): final verification and merge to main. All automated levels passed; UI/accessibility automation not runnable on the dev machine; phone-only checks listed in docs/QA.md.

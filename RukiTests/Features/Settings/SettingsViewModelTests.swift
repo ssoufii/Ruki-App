@@ -19,7 +19,7 @@ struct SettingsViewModelTests {
         authorizer: any NotificationAuthorizing = FakeNotificationAuthorizer(),
         clock: any ClockProviding = FixedClock(date: ISO8601DateFormatter().date(from: "2026-09-19T12:00:00Z")!),
         onScheduleAffectingChange: @escaping () async -> Void = {},
-        onDeleteAllData: @escaping () async -> Void = {},
+        onDeleteAllData: @escaping () async -> Bool = { true },
         onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) throws -> (SettingsViewModel, HistoryStore) {
         let historyStore = HistoryStore(modelContainer: try RukiModelContainer.make(inMemory: true))
@@ -174,7 +174,7 @@ struct SettingsViewModelTests {
     @Test("Confirming delete forwards to onDeleteAllData -- AppEnvironment owns the actual wipe")
     func deleteAllDataForwardsToCallback() async throws {
         let recorder = RefreshRecorder()
-        let (viewModel, _) = try makeViewModel(onDeleteAllData: { await recorder.record() })
+        let (viewModel, _) = try makeViewModel(onDeleteAllData: { await recorder.record(); return true })
 
         viewModel.deleteAllData()
 
@@ -182,6 +182,26 @@ struct SettingsViewModelTests {
     }
 
     #if DEBUG
+    @Test("A failed delete is reported, not swallowed -- the person must not be told their data is gone when it isn't")
+    func failedDeleteIsSurfaced() async throws {
+        let (viewModel, _) = try makeViewModel(onDeleteAllData: { false })
+
+        viewModel.deleteAllData()
+
+        #expect(await waitUntil { viewModel.deleteFailed })
+    }
+
+    @Test("A successful delete does not raise the failure alert")
+    func successfulDeleteDoesNotRaiseAlert() async throws {
+        let recorder = RefreshRecorder()
+        let (viewModel, _) = try makeViewModel(onDeleteAllData: { await recorder.record(); return true })
+
+        viewModel.deleteAllData()
+
+        #expect(await waitUntil { await recorder.count == 1 })
+        #expect(viewModel.deleteFailed == false)
+    }
+
     @Test("debugJump moves an OffsetClock to the scenario's target instant")
     func debugJumpMovesOffsetClock() throws {
         let offsetClock = OffsetClock(base: FixedClock(date: referenceDate))

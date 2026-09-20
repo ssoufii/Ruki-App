@@ -2,7 +2,10 @@ import Foundation
 import UserNotifications
 
 /// The real `NotificationAuthorizing`, wrapping `UNUserNotificationCenter`.
-final class SystemNotificationAuthorizer: NotificationAuthorizing {
+///
+/// `@unchecked Sendable`: see `UserNotificationScheduler`'s doc comment —
+/// same singleton, same reasoning.
+final class SystemNotificationAuthorizer: NotificationAuthorizing, @unchecked Sendable {
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) {

@@ -5,7 +5,13 @@ import UserNotifications
 /// (RUKI-013). Every request uses a calendar trigger built in
 /// `America/Toronto` so the fire time is the Toronto adhan regardless of the
 /// device's own time zone (mirrors `TorontoCalendar`, D19).
-final class UserNotificationScheduler: NotificationScheduling {
+///
+/// `@unchecked Sendable`: `UserNotifications` hasn't audited
+/// `UNUserNotificationCenter` for `Sendable` yet, but it's a shared
+/// singleton (`.current()`) that apps routinely call from background
+/// contexts (e.g. a `BGAppRefreshTask`) without synchronizing access
+/// themselves — treating it as safe to hold here matches that usage.
+final class UserNotificationScheduler: NotificationScheduling, @unchecked Sendable {
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) {

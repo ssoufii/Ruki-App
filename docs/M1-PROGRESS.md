@@ -34,7 +34,7 @@ Every story gets its own branch `m1/story-NNN-slug` (tasks: `m1/task-slug`), mer
 | 24 | #22 Space Only | | todo | |
 | 25 | #21 Sequential fallback | | todo | |
 | 26 | #27 Retake marker | | todo | |
-| 27 | #26 Missed-prayer private mark | | todo | |
+| 27 | #26 Missed-prayer private mark | `m1/story-026-missed-prayer-mark` | merged | `MissedPrayerMarkView` ("I prayed"/"I didn't"/"Cancel", explicit it never leaves the device) + `TodayViewModel.mark(_:as:)` (writes via `HistoryStore.recordMark`, on-device only). Wired into `TodayView`: only `.missed` rows are tappable. "Prayed" → `.markedPrayed` (counts toward streak); "not prayed" stays neutral `.missed`/"No check-in". Closed. CI: https://github.com/ssoufii/Ruki-App/actions/runs/35509497370 |
 | 28 | #34 Pause ≤2 taps | | todo | |
 | 29 | #32 Calendar grid | | todo | |
 | 30 | #36 Settings | | todo | |

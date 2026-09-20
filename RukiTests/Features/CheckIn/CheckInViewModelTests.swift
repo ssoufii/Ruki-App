@@ -213,4 +213,39 @@ struct CheckInViewModelTests {
         let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()))
         #expect(viewModel.affirmPrompt == "Have you prayed Fajr?")
     }
+
+    @Test("RUKI-022: toggling Space Only before affirming changes the mode capturePhoto is called with")
+    func togglingSpaceOnlyChangesCaptureMode() async throws {
+        let recorder = CaptureCallRecorder()
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
+        #expect(viewModel.isSpaceOnly == false)
+
+        viewModel.toggleSpaceOnly()
+        #expect(viewModel.isSpaceOnly == true)
+        await viewModel.affirmPrayed()
+
+        #expect(await recorder.lastMode == .spaceOnly)
+    }
+
+    @Test("RUKI-022: toggling twice returns to the original mode")
+    func togglingSpaceOnlyTwiceReturnsToOriginal() throws {
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()))
+
+        viewModel.toggleSpaceOnly()
+        viewModel.toggleSpaceOnly()
+
+        #expect(viewModel.isSpaceOnly == false)
+    }
+
+    @Test("RUKI-022: the toggle is a no-op once capture has already started")
+    func toggleIsNoOpAfterCaptureStarts() async throws {
+        let recorder = CaptureCallRecorder()
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
+        await viewModel.affirmPrayed()
+
+        viewModel.toggleSpaceOnly()
+
+        #expect(viewModel.isSpaceOnly == false)
+        #expect(await recorder.lastMode == .dual)
+    }
 }

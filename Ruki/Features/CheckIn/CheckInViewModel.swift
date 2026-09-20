@@ -27,7 +27,10 @@ final class CheckInViewModel {
     let slot: PrayerSlot
     let isLate: Bool
 
-    private let captureMode: CaptureMode
+    /// RUKI-022: a `var`, not `let` — the affirm step's toggle can override
+    /// the default (from `UserSettings.spaceOnlyDefault`) for this one
+    /// check-in without changing the setting itself.
+    private(set) var captureMode: CaptureMode
     private let expiresAt: Date
     private let cameraProvider: any CameraProviding
     private let clock: any ClockProviding
@@ -64,6 +67,16 @@ final class CheckInViewModel {
 
     var affirmPrompt: String {
         String(localized: "Have you prayed \(slot.prayer.displayName)?")
+    }
+
+    var isSpaceOnly: Bool { captureMode == .spaceOnly }
+
+    /// RUKI-022: only meaningful before capture starts — the toggle lives on
+    /// the affirm step, before `affirmPrayed()` ever reaches the camera
+    /// (RDP-4 already keeps the camera unreachable there regardless).
+    func toggleSpaceOnly() {
+        guard case .affirm = state else { return }
+        captureMode = isSpaceOnly ? .dual : .spaceOnly
     }
 
     /// Tone rule (CLAUDE.md): late still counts, and says so warmly.

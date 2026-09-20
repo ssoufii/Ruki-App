@@ -54,6 +54,16 @@ struct CheckInFlowView: View {
                 .foregroundStyle(RukiPalette.primaryText)
                 .multilineTextAlignment(.center)
 
+            Toggle(isOn: Binding(
+                get: { viewModel.isSpaceOnly },
+                set: { _ in viewModel.toggleSpaceOnly() }
+            )) {
+                Text("Space Only — rear camera only, you won't be in frame")
+                    .font(.subheadline)
+                    .foregroundStyle(RukiPalette.secondaryText)
+            }
+            .tint(RukiPalette.accent)
+
             Button {
                 Task { await viewModel.affirmPrayed() }
             } label: {

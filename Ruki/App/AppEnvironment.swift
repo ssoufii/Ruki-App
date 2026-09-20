@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UserNotifications
 
 /// The app's composition root: builds every `Core/` dependency exactly once
 /// at launch and hands the results to the views that need them. Nothing
@@ -16,6 +17,10 @@ final class AppEnvironment {
     private let persistence: any PersistenceProviding
     private let notificationScheduler: any NotificationScheduling
     private let backgroundRefreshScheduler: any BackgroundRefreshScheduling
+    /// Held here, not just assigned as the delegate, because
+    /// `UNUserNotificationCenter.delegate` is `weak` — nothing else in the
+    /// app keeps this alive otherwise (RUKI-014).
+    private let notificationCoordinator: NotificationCoordinator
 
     /// The current prayer timeline. A computed property, not stored, so a
     /// later madhab change in `userSettings` (RUKI-036 Settings) is picked
@@ -57,6 +62,9 @@ final class AppEnvironment {
         notificationScheduler = UserNotificationScheduler()
         notificationAuthorizer = SystemNotificationAuthorizer()
         backgroundRefreshScheduler = SystemBackgroundRefreshScheduler()
+
+        notificationCoordinator = NotificationCoordinator(router: router)
+        UNUserNotificationCenter.current().delegate = notificationCoordinator
     }
 
     /// Falls back to an in-memory store rather than crashing if the

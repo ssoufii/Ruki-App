@@ -217,4 +217,28 @@ Full details (branch names, CI run URLs, per-story notes) are in `docs/M1-PROGRE
 
 **Uncertain about:** whether `.backgroundTask(.appRefresh(_:))` (reasoned about via web search, Apple's own doc pages were blocked by the sandbox's egress proxy) is definitely the right registration approach once T2 wires an actual trigger, vs. the older manual `BGTaskScheduler.register`. Whether computing `AppEnvironment.timeline`/`backgroundRefresh` fresh on every access (rather than caching) is the right tradeoff long-term.
 
+### 2026-09-20 — Session 7, run 3 (scheduled M1 routine) — *no session-log entry written at the time; reconstructed from `docs/M1-PROGRESS.md`'s Run log*
+Merged T2 (Today screen task), #12 (add-friends/solo), #19 (prompt→capture flow, partial), #23/#24/#25 (caption, immediate post, late path), #26 (missed-prayer mark), #34 (pause). Attempted #20 (dual capture); **blocked** after 3 CI attempts on a Swift 6 actor-isolation/`UIViewRepresentable` conflict that three different fixes couldn't resolve — full diagnosis and an untried recommended fix are in `docs/M1-PROGRESS.md`. Also reconciled a bookkeeping gap from an earlier cut-off (a `m1/story-034-pause` merge whose progress-file update and issue-close hadn't landed). Full per-story detail, CI URLs, and honesty notes are in `docs/M1-PROGRESS.md` — not duplicated here since this entry is a reconstruction, not a live log.
+
+### 2026-09-20 — Session 8 (scheduled M1 routine, run 4)
+Start-of-run reconciliation found two loose ends: `m1/story-014-notification-opens-checkin`, pushed by an earlier session with its CI *cancelled* (not failed) and never merged or logged — verified it was stale (>90 min, no in-progress marker) and reconciled it; and `m1/story-036-settings`, mid-flight from a genuinely concurrent instance of this same routine (a commit ~5 minutes old) — left it completely untouched per the playbook's own stale-branch rule, and it merged on its own partway through this run. Both are logged in `docs/M1-PROGRESS.md` Findings as the first observed real instance of the scenario that rule exists for.
+
+**Built, tested (CI), and merged to `m1/integration`:**
+- `m1/story-014-notification-opens-checkin` (#14, **partial**): reconciled/rebased the orphaned branch above; routes a tapped prompt straight to a check-in cover, still `ComingSoonScreen` pending #20.
+- `m1/story-032-calendar-grid` (#32): `CalendarGridBuilder`/`PrayerBreakdown`/`CalendarViewModel`/`CalendarView` — the first real screen to drive `StreakCalculator`/`StreakSummaryPresenter` (#28/#31), previously unit-tested but never wired to UI.
+- `m1/story-037-export-delete` (#37, **partial by design**, D35): local JSON export (photos excluded, D37) + on-device delete, both from Settings; no account/server-side data exists in M1 to delete.
+- `m1/task-debug-tools` (T3): `DebugClockScenario` (five named clock-jump targets) + a real one-off test-notification path, both in a new DEBUG-only Settings section.
+
+Full details (branch names, CI URLs, per-story notes) are in `docs/M1-PROGRESS.md`.
+
+**Concurrent-development merge overhead:** three of these four branches touched the same handful of files (`TodayView`, `SettingsView`, `SettingsViewModel`, `AppEnvironment`, `RootView`) because they were built in parallel rather than each waiting for the last to land on `m1/integration` first. Every conflict was a straightforward "keep both" (no two stories touched the same underlying logic), resolved by hand rather than trusted to auto-merge. Flagging as a judgment call, not a settled pattern, per CLAUDE.md's disagreement-logging convention.
+
+**One CI retry (T3):** a test helper referenced `UserSettings.defaultCheckInWindowMinutes` — `@MainActor`-isolated because it lives on the `@MainActor` `UserSettings` class — from a plain nonisolated function. A `static let`'s own type being trivially `Sendable` doesn't exempt it from its enclosing type's actor isolation; worth remembering alongside the `static let`/`Schema` and `@unchecked Sendable` gotchas already logged from run 1.
+
+**NOT tested:** any SwiftUI rendering (the calendar grid's layout, the Settings DEBUG section, the delete confirmation dialog) — no simulator in this sandbox. Real notification delivery for the new test-prompt button, and `ShareLink`'s actual share-sheet behavior for the export file, are both unverified beyond what the fakes exercise.
+
+**Uncertain about:** whether resolving four concurrently-developed branches' merge conflicts by hand was the right call vs. serializing them — it kept all four moving in parallel at the cost of a heavier merge process than the playbook's examples assume.
+
+Stopped at 4 branches/tasks (playbook allows up to 6) — a clean stopping point with `m1/integration` green and every touched story's issue updated.
+
 Stopped at 6 branches (playbook's stated cap). `m1/integration` green; `main` untouched — most stories are still `todo`, so the completion phase (playbook §5) does not apply yet.

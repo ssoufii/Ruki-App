@@ -83,6 +83,29 @@ struct HistoryStoreTests {
         #expect(records.first { $0.slotID == withoutCaption.id }?.caption == nil)
     }
 
+    @Test("recordCheckIn persists retakeCount, and defaults to 0 (RUKI-027)")
+    func recordCheckInPersistsRetakeCount() throws {
+        let container = try RukiModelContainer.make(inMemory: true)
+        let store = HistoryStore(modelContainer: container)
+        let retaken = makeSlot(prayer: .fajr, start: referenceDate)
+        let notRetaken = makeSlot(prayer: .dhuhr, start: referenceDate.addingTimeInterval(3600))
+
+        try store.recordCheckIn(
+            for: retaken, isLate: false, checkedInAt: referenceDate,
+            frontImageData: nil, rearImageData: nil, expiresAt: referenceDate.addingTimeInterval(3600),
+            retakeCount: 1
+        )
+        try store.recordCheckIn(
+            for: notRetaken, isLate: false, checkedInAt: referenceDate,
+            frontImageData: nil, rearImageData: nil, expiresAt: referenceDate.addingTimeInterval(3600)
+        )
+
+        let context = ModelContext(container)
+        let records = try context.fetch(FetchDescriptor<CheckInRecord>())
+        #expect(records.first { $0.slotID == retaken.id }?.retakeCount == 1)
+        #expect(records.first { $0.slotID == notRetaken.id }?.retakeCount == 0)
+    }
+
     @Test("Recording a mark makes it show up as a snapshot, and a second mark replaces the first")
     func recordsMark() throws {
         let store = try makeStore()

@@ -27,8 +27,8 @@ struct FriendFacingCheckInTests {
     @Test("The encoded JSON contains none of the forbidden keys (RUKI-035, RDP-2/RDP-3, D8)")
     func encodedPayloadHasNoForbiddenKeys() throws {
         let data = try JSONEncoder().encode(sample)
-        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let keys = Set(object?.keys ?? [])
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        let keys = Set(object.keys)
         #expect(keys.isDisjoint(with: Self.forbiddenKeys))
     }
 

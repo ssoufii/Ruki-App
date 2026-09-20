@@ -23,6 +23,7 @@ struct RootView: View {
                     clock: environment.clock,
                     userSettings: environment.userSettings,
                     historyStore: environment.historyStore,
+                    cameraProvider: environment.cameraProvider,
                     notificationAuthorizer: environment.notificationAuthorizer,
                     onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
                     onDeleteAllData: { await environment.deleteAllOnDeviceData() },

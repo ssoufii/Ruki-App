@@ -118,6 +118,22 @@ final class TodayViewModel {
         }
     }
 
+    /// RUKI-020: builds the check-in flow for an open row. `expiresAt` is the
+    /// next slot's start (D26/D37, when the photo gets purged), and capture
+    /// mode follows the user's Space Only default (RUKI-022 adds a
+    /// per-capture override in the flow itself).
+    func makeCheckInViewModel(for row: Row, cameraProvider: any CameraProviding) -> CheckInViewModel {
+        CheckInViewModel(
+            slot: row.slot,
+            isLate: row.status == .openLate,
+            captureMode: userSettings.spaceOnlyDefault ? .spaceOnly : .dual,
+            expiresAt: timeline.nextSlot(after: row.slot.window.start)?.window.start ?? row.slot.window.end,
+            cameraProvider: cameraProvider,
+            clock: clock,
+            historyStore: historyStore
+        )
+    }
+
     /// RUKI-034: pauses starting now, for the chosen duration. The caller is
     /// responsible for re-planning notifications afterward (`AppEnvironment
     /// .refreshBackgroundSchedule`) — this type only owns `HistoryStore`.

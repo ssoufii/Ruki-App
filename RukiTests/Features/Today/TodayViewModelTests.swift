@@ -194,6 +194,35 @@ struct TodayViewModelTests {
         #expect(pauses.first?.endsAt == nil)
     }
 
+    @Test("Builds a check-in view model honouring the Space Only default and expiring at the next slot (RUKI-020)")
+    func makeCheckInViewModelUsesSettingsAndNextSlot() async throws {
+        // 5:30 a.m. Toronto: Fajr open, on time.
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T09:30:00Z")!
+        let timeline = PrayerTimeline(provider: FixedPrayerTimeProvider(), madhab: .standard)
+        let userSettings = UserSettings(defaults: freshDefaults())
+        userSettings.onboardingCompletedAt = now.addingTimeInterval(-86_400)
+        userSettings.spaceOnlyDefault = true
+        let historyStore = HistoryStore(modelContainer: try RukiModelContainer.make(inMemory: true))
+        let viewModel = TodayViewModel(
+            timeline: timeline, clock: FixedClock(date: now), userSettings: userSettings, historyStore: historyStore
+        )
+        viewModel.refresh()
+        let fajrRow = try #require(viewModel.rows.first { $0.slot.prayer == .fajr })
+        let recorder = CaptureCallRecorder()
+
+        let checkInViewModel = viewModel.makeCheckInViewModel(
+            for: fajrRow, cameraProvider: RecordingCameraProvider(recorder: recorder)
+        )
+        #expect(checkInViewModel.isLate == false)
+
+        await checkInViewModel.affirmPrayed()
+        checkInViewModel.post()
+
+        #expect(await recorder.lastMode == .spaceOnly)
+        let record = try #require(try historyStore.checkInSnapshots().first)
+        #expect(record.slotID == fajrRow.slot.id)
+    }
+
     @Test("A fixed-length pause records the right end date")
     func fixedLengthPauseRecordsEndDate() throws {
         let now = ISO8601DateFormatter().date(from: "2026-09-19T18:00:00Z")!

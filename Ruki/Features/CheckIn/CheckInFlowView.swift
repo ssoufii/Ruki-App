@@ -4,12 +4,9 @@ import SwiftUI
 /// review → post, in as few taps as the flow allows. The camera is
 /// structurally unreachable before the user affirms (RDP-4) —
 /// `CheckInViewModel.affirmPrayed()` is the one path that ever touches
-/// `CameraProviding`.
-///
-/// **Not yet reachable from `TodayView`.** There's no real `CameraProviding`
-/// implementation to inject — the Simulator placeholder and the real
-/// `AVCameraProvider` are both RUKI-020's job. Wiring this in before then
-/// would mean shipping a test fake into a real screen.
+/// `CameraProviding`. Wired into `TodayView` as of RUKI-020, backed by
+/// `AVCameraProvider` on device and `PlaceholderCameraProvider` on the
+/// Simulator (`AppEnvironment` chooses).
 struct CheckInFlowView: View {
     @State var viewModel: CheckInViewModel
 
@@ -19,8 +16,7 @@ struct CheckInFlowView: View {
             case .affirm:
                 affirmStep
             case .capturing:
-                ProgressView()
-                    .tint(RukiPalette.accent)
+                capturingStep
             case .review(let photo):
                 reviewStep(photo: photo)
             case .posted:
@@ -32,6 +28,23 @@ struct CheckInFlowView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RukiPalette.background)
+        .onChange(of: viewModel.state) { _, newState in
+            if newState == .posted {
+                Task { await viewModel.stopSession() }
+            }
+        }
+        .onDisappear {
+            Task { await viewModel.stopSession() }
+        }
+    }
+
+    private var capturingStep: some View {
+        ZStack {
+            viewModel.previewView
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            ProgressView()
+                .tint(RukiPalette.accent)
+        }
     }
 
     private var affirmStep: some View {
@@ -86,6 +99,7 @@ struct CheckInFlowView: View {
             }
             .font(.subheadline)
             .foregroundStyle(RukiPalette.secondaryText)
+            .disabled(!viewModel.canRetake)
         }
     }
 
@@ -130,6 +144,16 @@ struct CheckInFlowView: View {
 /// linked into the app target previews run against.
 private struct FakeCameraProvider: CameraProviding {
     nonisolated func isDualCameraSupported() -> Bool { true }
+
+    func requestAuthorization() async -> Bool { true }
+
+    func startSession() async throws {}
+
+    func stopSession() async {}
+
+    nonisolated func makePreviewView() -> AnyView {
+        AnyView(RukiPalette.surface)
+    }
 
     func capturePhoto(mode: CaptureMode) async throws -> CapturedPhoto {
         CapturedPhoto(frontImageData: Data([0x01]), rearImageData: Data([0x02]))

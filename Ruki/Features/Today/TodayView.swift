@@ -4,16 +4,17 @@ import SwiftUI
 /// T2: the app's home screen once onboarding is done. Shows the current or
 /// next prayer with a gentle countdown, a live card for whatever's open right
 /// now, and today's five prayer rows. Pause (RUKI-034), Settings (RUKI-036),
-/// and History (RUKI-032) are real flows from here; check-in is still a
-/// doorway — `ComingSoonScreen` until RUKI-020 gives it a real
-/// `CameraProviding` to wire in.
+/// History (RUKI-032), and check-in (RUKI-019/020) are all real flows from
+/// here.
 struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
-    @State private var showingCheckIn = false
+    @State private var checkInRow: TodayViewModel.Row?
     @State private var showingSettings = false
     @State private var showingHistory = false
     @State private var markingRow: TodayViewModel.Row?
+
+    private let cameraProvider: any CameraProviding
 
     /// Kept only to hand to `CalendarView` (RUKI-032) when History is opened
     /// — `viewModel` already owns its own copy for Today's own rows.
@@ -47,6 +48,7 @@ struct TodayView: View {
         clock: any ClockProviding,
         userSettings: UserSettings,
         historyStore: HistoryStore,
+        cameraProvider: any CameraProviding,
         notificationAuthorizer: any NotificationAuthorizing,
         onScheduleAffectingChange: @escaping () async -> Void,
         onDeleteAllData: @escaping () async -> Void,
@@ -55,6 +57,7 @@ struct TodayView: View {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
+        self.cameraProvider = cameraProvider
         self.timeline = timeline
         self.clock = clock
         self.userSettings = userSettings
@@ -129,8 +132,9 @@ struct TodayView: View {
                 Task { await onScheduleAffectingChange() }
             }
         }
-        .sheet(isPresented: $showingCheckIn) {
-            ComingSoonScreen(title: "Check-in")
+        .sheet(item: $checkInRow) { row in
+            CheckInFlowView(viewModel: viewModel.makeCheckInViewModel(for: row, cameraProvider: cameraProvider))
+                .onDisappear { viewModel.refresh() }
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(
@@ -168,7 +172,7 @@ struct TodayView: View {
         switch row.status {
         case .openOnTime, .openLate:
             Button {
-                showingCheckIn = true
+                checkInRow = row
             } label: {
                 Text("Check in for \(row.slot.prayer.displayName)")
                     .font(.headline)
@@ -240,6 +244,7 @@ private struct PrayerRowView: View {
         clock: environment.clock,
         userSettings: environment.userSettings,
         historyStore: environment.historyStore,
+        cameraProvider: environment.cameraProvider,
         notificationAuthorizer: environment.notificationAuthorizer,
         onScheduleAffectingChange: {},
         onDeleteAllData: {}

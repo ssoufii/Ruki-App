@@ -85,6 +85,40 @@ struct CheckInViewModelTests {
         }
     }
 
+    @Test("Retake is hard-capped at one -- a second attempt is a no-op (RUKI-020)")
+    func secondRetakeIsANoOp() async throws {
+        let recorder = CaptureCallRecorder()
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
+        await viewModel.affirmPrayed()
+        await viewModel.retake()
+        #expect(viewModel.canRetake == false)
+
+        await viewModel.retake()
+
+        #expect(await recorder.callCount == 2, "the second retake must not call the camera again")
+        #expect(viewModel.retakeCount == 1)
+    }
+
+    @Test("canRetake is true until the cap is reached")
+    func canRetakeReflectsTheCap() async throws {
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()))
+        await viewModel.affirmPrayed()
+        #expect(viewModel.canRetake == true)
+
+        await viewModel.retake()
+
+        #expect(viewModel.canRetake == false)
+    }
+
+    @Test("Denied camera authorization moves to .failed without starting a session")
+    func deniedAuthorizationMovesToFailed() async throws {
+        let viewModel = try makeViewModel(cameraProvider: FakeCameraProvider(authorized: false))
+
+        await viewModel.affirmPrayed()
+
+        #expect(viewModel.state == .failed)
+    }
+
     @Test("Retaking before a photo exists is a no-op")
     func retakeBeforeReviewIsNoOp() async throws {
         let recorder = CaptureCallRecorder()

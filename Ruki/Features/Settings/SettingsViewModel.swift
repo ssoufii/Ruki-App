@@ -15,9 +15,14 @@ final class SettingsViewModel {
     private let historyStore: HistoryStore
     private let clock: any ClockProviding
     private let onScheduleAffectingChange: () async -> Void
+    private let onDeleteAllData: () async -> Void
 
     private(set) var notificationStatus: NotificationAuthorizationStatus = .notDetermined
     private(set) var isPaused = false
+    /// RUKI-037: a fresh local JSON file of everything `HistoryStore` holds
+    /// (minus photos — D37), rewritten every `refresh()`. `nil` only if the
+    /// export itself failed, which `loadError` explains.
+    private(set) var exportFileURL: URL?
     private(set) var loadError: (any Error)?
 
     var madhab: Madhab {
@@ -51,28 +56,56 @@ final class SettingsViewModel {
         notificationAuthorizer: any NotificationAuthorizing,
         historyStore: HistoryStore,
         clock: any ClockProviding,
-        onScheduleAffectingChange: @escaping () async -> Void
+        onScheduleAffectingChange: @escaping () async -> Void,
+        onDeleteAllData: @escaping () async -> Void
     ) {
         self.userSettings = userSettings
         self.notificationAuthorizer = notificationAuthorizer
         self.historyStore = historyStore
         self.clock = clock
         self.onScheduleAffectingChange = onScheduleAffectingChange
+        self.onDeleteAllData = onDeleteAllData
     }
 
-    /// Refreshes both the notification-permission status (which only the
-    /// system knows) and whether a pause is active right now. Neither is
-    /// `@Observable`-tracked from elsewhere, so the view calls this on
-    /// appear rather than it being kept live automatically.
+    /// Refreshes the notification-permission status (which only the system
+    /// knows), whether a pause is active right now, and the export file.
+    /// None of these is `@Observable`-tracked from elsewhere, so the view
+    /// calls this on appear rather than it being kept live automatically.
     func refresh() async {
         notificationStatus = await notificationAuthorizer.currentStatus()
         do {
             let pauses = try historyStore.pauseSnapshots()
             isPaused = pauses.contains { $0.isActive(at: clock.now()) }
+            exportFileURL = try Self.writeExportFile(historyStore: historyStore, now: clock.now())
             loadError = nil
         } catch {
             loadError = error
         }
+    }
+
+    /// RUKI-037: "Delete my data on this device" — forwarded to
+    /// `AppEnvironment`, which owns SwiftData, `UserSettings`, and the
+    /// notification scheduler, none of which this view model holds all of.
+    /// The confirmation step lives in `SettingsView`; by the time this is
+    /// called the user has already agreed.
+    func deleteAllData() {
+        Task { await onDeleteAllData() }
+    }
+
+    /// A fresh temp file each call rather than a cached one: cheap (this
+    /// data is small), and it means the export is never stale by the time
+    /// the person actually taps share.
+    private static func writeExportFile(historyStore: HistoryStore, now: Date) throws -> URL {
+        let export = try historyStore.exportSnapshot(exportedAt: now)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(export)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ruki-export-\(TorontoCalendar.dayKey(for: now))")
+            .appendingPathExtension("json")
+        try data.write(to: url, options: .atomic)
+        return url
     }
 
     /// Same two-tap flow as `TodayView`'s pause button (PRD §7.8: Settings

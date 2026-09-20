@@ -8,6 +8,7 @@ import SwiftUI
 struct SettingsView: View {
     @State var viewModel: SettingsViewModel
     @State private var showingPause = false
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         Form {
@@ -62,6 +63,25 @@ struct SettingsView: View {
                 }
                 .disabled(viewModel.isPaused)
             }
+
+            Section {
+                if let exportFileURL = viewModel.exportFileURL {
+                    ShareLink(item: exportFileURL) {
+                        Label("Export data", systemImage: "square.and.arrow.up")
+                    }
+                }
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Text("Delete my data on this device")
+                }
+            } footer: {
+                // RUKI-037 is deliberately partial (D35): this wipes SwiftData
+                // and settings on this device, but there's no account or
+                // server-side data to delete in M1 at all -- that's M2, once
+                // sign-in (#8) exists.
+                Text("Removes every check-in, mark, and pause stored on this device. There's no account to delete yet — that arrives with sign-in in a future update.")
+            }
         }
         .task { await viewModel.refresh() }
         .sheet(isPresented: $showingPause) {
@@ -69,6 +89,18 @@ struct SettingsView: View {
                 viewModel.pause(for: duration)
                 showingPause = false
             }
+        }
+        .confirmationDialog(
+            "Delete my data on this device?",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                viewModel.deleteAllData()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This can't be undone. Your check-ins, private marks, and pauses on this device will be gone.")
         }
     }
 }
@@ -92,7 +124,8 @@ private extension NotificationAuthorizationStatus {
             notificationAuthorizer: environment.notificationAuthorizer,
             historyStore: environment.historyStore,
             clock: environment.clock,
-            onScheduleAffectingChange: {}
+            onScheduleAffectingChange: {},
+            onDeleteAllData: {}
         )
     )
 }

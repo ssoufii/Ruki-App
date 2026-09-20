@@ -24,7 +24,8 @@ struct RootView: View {
                     userSettings: environment.userSettings,
                     historyStore: environment.historyStore,
                     notificationAuthorizer: environment.notificationAuthorizer,
-                    onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() }
+                    onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
+                    onDeleteAllData: { await environment.deleteAllOnDeviceData() }
                 )
             }
         }

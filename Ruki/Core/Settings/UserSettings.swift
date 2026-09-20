@@ -76,4 +76,17 @@ final class UserSettings {
         spaceOnlyDefault = (defaults.object(forKey: Key.spaceOnlyDefault) as? Bool) ?? false
         onboardingCompletedAt = defaults.object(forKey: Key.onboardingCompletedAt) as? Date
     }
+
+    /// RUKI-037: "Delete my data on this device" resets every preference to
+    /// its fresh-install default. `onboardingCompletedAt` going back to
+    /// `nil` is what sends `AppRouter` — which reads it live — back to
+    /// onboarding; nothing else has to ask it to.
+    func resetToDefaults() {
+        madhab = .standard
+        checkInWindowMinutes = Self.defaultCheckInWindowMinutes
+        enabledPrayers = Set(Prayer.allCases)
+        soundEnabled = true
+        spaceOnlyDefault = false
+        onboardingCompletedAt = nil
+    }
 }

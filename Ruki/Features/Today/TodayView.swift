@@ -24,6 +24,11 @@ struct TodayView: View {
     /// without this view owning any scheduling logic itself.
     let onScheduleAffectingChange: () async -> Void
 
+    /// RUKI-037: "Delete my data on this device", forwarded to
+    /// `AppEnvironment` — wiping SwiftData and cancelling notifications
+    /// needs the scheduler this view never otherwise touches.
+    let onDeleteAllData: () async -> Void
+
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
     /// notion of "now", not about what wakes the UI up to ask for it again).
@@ -35,7 +40,8 @@ struct TodayView: View {
         userSettings: UserSettings,
         historyStore: HistoryStore,
         notificationAuthorizer: any NotificationAuthorizing,
-        onScheduleAffectingChange: @escaping () async -> Void
+        onScheduleAffectingChange: @escaping () async -> Void,
+        onDeleteAllData: @escaping () async -> Void
     ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
@@ -45,6 +51,7 @@ struct TodayView: View {
         self.historyStore = historyStore
         self.notificationAuthorizer = notificationAuthorizer
         self.onScheduleAffectingChange = onScheduleAffectingChange
+        self.onDeleteAllData = onDeleteAllData
     }
 
     var body: some View {
@@ -111,7 +118,8 @@ struct TodayView: View {
                     notificationAuthorizer: notificationAuthorizer,
                     historyStore: historyStore,
                     clock: clock,
-                    onScheduleAffectingChange: onScheduleAffectingChange
+                    onScheduleAffectingChange: onScheduleAffectingChange,
+                    onDeleteAllData: onDeleteAllData
                 )
             )
             .onDisappear { viewModel.refresh() }
@@ -206,6 +214,7 @@ private struct PrayerRowView: View {
         userSettings: environment.userSettings,
         historyStore: environment.historyStore,
         notificationAuthorizer: environment.notificationAuthorizer,
-        onScheduleAffectingChange: {}
+        onScheduleAffectingChange: {},
+        onDeleteAllData: {}
     )
 }

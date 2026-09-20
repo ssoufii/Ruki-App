@@ -17,7 +17,8 @@ struct SettingsViewModelTests {
     private func makeViewModel(
         userSettings: UserSettings? = nil,
         authorizer: any NotificationAuthorizing = FakeNotificationAuthorizer(),
-        onScheduleAffectingChange: @escaping () async -> Void = {}
+        onScheduleAffectingChange: @escaping () async -> Void = {},
+        onDeleteAllData: @escaping () async -> Void = {}
     ) throws -> (SettingsViewModel, HistoryStore) {
         let historyStore = HistoryStore(modelContainer: try RukiModelContainer.make(inMemory: true))
         let viewModel = SettingsViewModel(
@@ -25,7 +26,8 @@ struct SettingsViewModelTests {
             notificationAuthorizer: authorizer,
             historyStore: historyStore,
             clock: FixedClock(date: referenceDate),
-            onScheduleAffectingChange: onScheduleAffectingChange
+            onScheduleAffectingChange: onScheduleAffectingChange,
+            onDeleteAllData: onDeleteAllData
         )
         return (viewModel, historyStore)
     }
@@ -137,6 +139,46 @@ struct SettingsViewModelTests {
         #expect(pauses.first?.endsAt == referenceDate.addingTimeInterval(3 * 24 * 60 * 60))
         try await Task.sleep(for: .milliseconds(10))
         #expect(await recorder.count == 1)
+    }
+
+    @Test("refresh() writes a JSON export file with no photo fields anywhere in it (RUKI-037, D37)")
+    func refreshWritesExportFileWithoutPhotos() async throws {
+        let (viewModel, historyStore) = try makeViewModel()
+        let timeline = PrayerTimeline(provider: FixedPrayerTimeProvider(), madhab: .standard)
+        let fajr = timeline.slots(onDayOf: referenceDate).first { $0.prayer == .fajr }!
+        try historyStore.recordCheckIn(
+            for: fajr, isLate: false, checkedInAt: referenceDate,
+            frontImageData: Data([0x01, 0x02]), rearImageData: nil,
+            expiresAt: referenceDate.addingTimeInterval(3600), caption: "alhamdulillah"
+        )
+
+        await viewModel.refresh()
+
+        let url = try #require(viewModel.exportFileURL)
+        let data = try Data(contentsOf: url)
+        let export = try JSONDecoder().decoded(HistoryExport.self, from: data)
+        #expect(export.checkIns.count == 1)
+        #expect(export.checkIns.first?.caption == "alhamdulillah")
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.lowercased().contains("imagedata"))
+    }
+
+    @Test("Confirming delete forwards to onDeleteAllData -- AppEnvironment owns the actual wipe")
+    func deleteAllDataForwardsToCallback() async throws {
+        let recorder = RefreshRecorder()
+        let (viewModel, _) = try makeViewModel(onDeleteAllData: { await recorder.record() })
+
+        viewModel.deleteAllData()
+
+        try await Task.sleep(for: .milliseconds(10))
+        #expect(await recorder.count == 1)
+    }
+}
+
+private extension JSONDecoder {
+    func decoded<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        dateDecodingStrategy = .iso8601
+        return try decode(type, from: data)
     }
 }
 

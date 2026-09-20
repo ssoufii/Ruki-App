@@ -88,6 +88,37 @@ final class HistoryStore {
         try modelContext.save()
     }
 
+    // MARK: Export & delete
+
+    /// RUKI-037: everything this store holds, as JSON-ready value types,
+    /// minus photo data (D37). `exportedAt` is the caller's `clock.now()`,
+    /// never read from here.
+    func exportSnapshot(exportedAt: Date) throws -> HistoryExport {
+        let checkIns = try modelContext.fetch(FetchDescriptor<CheckInRecord>()).map {
+            HistoryExport.CheckIn(
+                slotID: $0.slotID, prayer: $0.prayerRawValue, dayKey: $0.dayKey,
+                isLate: $0.isLate, checkedInAt: $0.checkedInAt, caption: $0.caption
+            )
+        }
+        let marks = try modelContext.fetch(FetchDescriptor<PrayerMark>()).map {
+            HistoryExport.Mark(slotID: $0.slotID, kind: $0.kindRawValue, markedAt: $0.markedAt)
+        }
+        let pauses = try modelContext.fetch(FetchDescriptor<PauseRecord>()).map {
+            HistoryExport.Pause(startedAt: $0.startedAt, endsAt: $0.endsAt)
+        }
+        return HistoryExport(exportedAt: exportedAt, checkIns: checkIns, marks: marks, pauses: pauses)
+    }
+
+    /// RUKI-037: wipes every on-device record. Settings and pending
+    /// notifications are the caller's own responsibility (`AppEnvironment`)
+    /// — this type only owns SwiftData.
+    func deleteAll() throws {
+        for record in try modelContext.fetch(FetchDescriptor<CheckInRecord>()) { modelContext.delete(record) }
+        for record in try modelContext.fetch(FetchDescriptor<PrayerMark>()) { modelContext.delete(record) }
+        for record in try modelContext.fetch(FetchDescriptor<PauseRecord>()) { modelContext.delete(record) }
+        try modelContext.save()
+    }
+
     // MARK: Snapshots
 
     /// Value-type view of every check-in, for `SlotResolver`.

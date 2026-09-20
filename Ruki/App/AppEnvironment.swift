@@ -52,6 +52,16 @@ final class AppEnvironment {
         try? await backgroundRefresh.refreshAndScheduleNext(inputs: inputs)
     }
 
+    /// RUKI-037: "Delete my data on this device". Wipes on-device history,
+    /// cancels every pending prompt outright (a re-plan would just schedule
+    /// fresh ones against the reset-but-still-enabled defaults), then resets
+    /// settings — which sends the router back to onboarding.
+    func deleteAllOnDeviceData() async {
+        try? historyStore.deleteAll()
+        try? await notificationScheduler.replacePending(with: [], soundEnabled: userSettings.soundEnabled)
+        userSettings.resetToDefaults()
+    }
+
     init() {
         #if DEBUG
         // A tester can jump the clock (DEBUG tools, T3) instead of waiting

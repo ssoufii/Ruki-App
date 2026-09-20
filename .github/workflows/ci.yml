@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    # m1/** so every story branch is tested on macOS before it can merge (M1 routine).
+    branches: [main, 'm1/**']
 
 jobs:
   build-and-test:
@@ -29,9 +30,23 @@ jobs:
         # empty boilerplate — no M0/M1 story has written UI test content yet —
         # and XCUITest needs a real accessibility session to launch, which
         # this scoping sidesteps until there's something in it worth running.
-        run: >
-          xcodebuild test
-          -project Ruki.xcodeproj
-          -scheme Ruki
-          -destination "platform=iOS Simulator,name=${{ steps.destination.outputs.device }}"
-          -only-testing:RukiTests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Ruki.xcodeproj \
+            -scheme Ruki \
+            -destination "platform=iOS Simulator,name=${{ steps.destination.outputs.device }}" \
+            -only-testing:RukiTests 2>&1 | tee test.log
+
+      - name: No compiler warnings (Debug)
+        run: ./scripts/check-no-warnings.sh test.log
+
+      - name: Release build, no warnings
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Ruki.xcodeproj \
+            -scheme Ruki \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' 2>&1 | tee release.log
+          ./scripts/check-no-warnings.sh release.log

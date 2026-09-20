@@ -6,12 +6,12 @@ Read alongside `CLAUDE.md` at the start of every session. Update at the end of e
 
 ## Current state
 
-**Phase:** M0 (foundations) complete. M1 (solo loop) not started.
-**Last session:** 2026-09-19 (session 4) — verified M0, fixed the defects that surfaced, resolved the open decisions the user delegated, created `docs/` and `.claude/commands/`. Session 3 (the M0 build) never updated this file; its entry below is reconstructed from the commit.
-**Next action:** Start M1 (solo loop). No decision blocks it. MVP backlog (65 stories, Epics 01–13, milestones M0–M3) is in GitHub Issues. The real prayer-time engine + OQ-8 (Epic 13) is the *first item of M2* — no friend can be added on frozen times (D27).
+**Phase:** M0 (foundations) complete. M1 (solo loop) in progress, built by the unattended cloud routine (D39).
+**Last session:** 2026-09-20 (session 7, scheduled M1 routine, run 2) — merged 6 more branches into `m1/integration` (15 of 33 M1 stories/tasks now merged or partial: adds #17, #15 (partial), T1 app shell, #11, #9 (partial), #10), all green on CI, every one on the first attempt.
+**Next action:** Continue the M1 story order in `docs/M1-PLAYBOOK.md` §4. #14 was deliberately skipped out of order (needs the check-in cover screen, #19, which doesn't exist yet — see `docs/M1-PROGRESS.md` Findings) — the next unblocked story is T2 (Today screen), which #12 (add-friends step) also needs before onboarding can be completed end-to-end. The real prayer-time engine + OQ-8 (Epic 13) is still the *first item of M2* — no friend can be added on frozen times (D27).
 
-**What exists:** Xcode project (file-system synchronized groups, iOS 17.0, Swift 6, default actor isolation `nonisolated`); `ClockProviding`/`SystemClock`; protocol boundaries + fakes for prayer times, notifications, persistence, camera; `FixedPrayerTimeProvider` (D27); 15 test executions / 13 test functions (`RukiTests`); CI on GitHub Actions (passing on `913ad8d`); `docs/QA.md`, `docs/ARCHITECTURE.md`, `.claude/commands/`.
-**What does not exist:** any M1 feature, any UI beyond the Xcode template `ContentView`, any backend.
+**What exists:** everything from session 6, plus: `UserSettings` (`@MainActor @Observable`, UserDefaults-backed madhab/window/enabledPrayers/sound/spaceOnly/onboarding) + `PromptInputs`; a 12-day notification-scheduling horizon (`PromptRefreshCoordinator`) and a submit-only `BGTaskScheduler` wrapper (`BackgroundRefreshScheduling`/`SystemBackgroundRefreshScheduler`/`BackgroundRefresh`) — built but **not wired to any trigger yet**; the app shell (`AppEnvironment` composition root, `AppRouter`, `RootView`, `RukiPalette` design tokens); a real onboarding flow (`OnboardingFlow` sequencing `MadhabSelectionView` → `NotificationPermissionView` → `IntentionView`) replacing the Xcode template `ContentView`, which is now deleted. Layout now matches CLAUDE.md's repo table: `Ruki/App/`, `Ruki/DesignSystem/`, `Ruki/Features/Onboarding/`.
+**What does not exist:** any backend; anything invoking `BackgroundRefresh`/`PromptScheduler` on a real trigger (needs T2's Today screen and #34's pause, not #15 itself — #15 built the logic, not the callers); the Today screen itself (still a placeholder in `RootView`); add-friends onboarding step (#12); notification-tap routing (#14, deliberately deferred); camera capture; calculation-method selection and 3-session practice profiles (out of scope for v1 — D31/D34, #9 only did Asr madhab); Sign in with Apple (#8, deferred to M2, D35).
 
 ---
 
@@ -60,6 +60,14 @@ Each entry: what was decided, why, and what would make us revisit. Do not silent
 | **D30** | **Isha's prayer window ends at the next day's Fajr adhan** (not midnight) | PRD Appendix A left it as "midnight (or Fajr)". The window is where a check-in is still accepted (Late). Ending at midnight would *refuse* a valid Isha prayed at 12:30 a.m. — the app would be telling someone their practice is wrong (RDP-6) and creating exactly the guilt R5 warns about. Ending at Fajr never refuses a valid prayer. It costs nothing structurally: D23 already expires posts at the next prayer, and Late-still-counts keeps the tone right. **This is a check-in boundary, not a fiqh ruling** — I am not a scholar; OQ-1 review may revise it, and the copy must never call midnight–Fajr "worse." | Scholar review says otherwise; M4 shows post-midnight Isha check-ins are noise |
 | **D31** | **Shia 3-session support ships in v1.1, not v1** *(resolves OQ-3)* | It changes the shape of the engine (prompts per day, merged windows, which adhan a combined prompt fires at — the last needs a knowledgeable answer, not my guess), and doing it half-right violates RDP-6 more than a labelled deferral. The MVP is Toronto-only and dogfooded by the builder. Design constraint now: keep `Prayer` = five cases and the window model per-prayer, so combining is an overlay in the scheduler, not a schema change. **Cost, stated plainly:** v1 falls short of RDP-6 for combining users — they get five prompts, and prayers they pray combined may read as Late. `/values-check` should list this as a known shortfall, and the roadmap should not slip past v1.1. | The first TestFlight cohort includes combining users who churn on this |
 | **D32** | **Jumu'ah is a fast-follow (PRD §7.10); MVP surfaces Friday Dhuhr as `.dhuhr`, but the data model reserves `jumuah`** | CLAUDE.md rule 8 said "its own prayer type" while the PRD (which wins on *what*) makes it P1 and `Prayer.swift` says display-only. Reconciled: the engine enum stays five cases; `CheckIn.prayer` (M1 SwiftData model) includes `jumuah` from day one so no migration is needed later. CLAUDE.md rule 8 reworded to match. | Jumu'ah is pulled into MVP |
+
+| **D33** | **The check-in window setting (10/15/30 min) can only *shorten* the default; Fajr ignores it** | Stories/PRD §7.9 offer 10/15/30, which collides with D16 (30 default, Maghrib 20). Taking `min(setting, default)` keeps the Maghrib invariant and Fajr's adhan→sunrise (D17) intact by construction. A shorter window means more Late, so it is the user's own private choice, default 30. Implemented in `PrayerTimeline.onTimeEnd`. | A user wants a *longer* window than default |
+| **D34** | **Calculation method is read-only in M1 ("ISNA, Toronto"); only Asr madhab is selectable** | `FixedPrayerTimeProvider` ignores the method (D27), so a picker would be a control that does nothing — misleading for the person dogfooding it. Becomes selectable with the real engine. | Real engine (first item of M2) lands |
+| **D35** | **Sign-in (#8) is deferred to M2; M1 has no accounts** | M1 is "fully usable alone, no backend" (D13). Sign in with Apple needs an entitlement I can't verify against the user's Apple team, and phone auth needs an SMS backend. Building an untestable half is worse than deferring. #37 becomes "export/delete on this device"; server-side deletion joins M2. | M2 starts |
+| **D36** | **Narrow exception to "never edit project.pbxproj": build-setting lines only, plus `Config/Ruki-Info.plist`. No entitlements added.** | The camera usage string and BG-task identifiers can't be expressed without a merged plist, and a missing camera string crashes the app on first capture. Change is 6 lines of build settings (INFOPLIST_FILE, portrait-only, iPhone-only), no file registration. Time-Sensitive and Sign in with Apple entitlements are NOT added: if the user's team can't sign them the app won't build on their phone. `interruptionLevel = .timeSensitive` is set in code; it will pierce Focus only once the user adds the Time Sensitive Notifications capability in Xcode. | Team capabilities confirmed |
+| **D37** | **Local photos live only until the next prayer begins; the record stays forever** | D26 says "the photo goes; the fact stays." Keeping every prayer selfie on-device forever is unneeded, storage-heavy, and a risk (photos taken at home). `expiresAt` = next prayer start, matching the post lifetime (D23); a purge runs on launch/refresh. Export excludes photos. | Users want their own photo archive (would be opt-in) |
+| **D38** | **Pause covers any prayer window it overlaps** (not only ones that start inside it) | Pausing mid-Asr must not turn that Asr into a miss when the pause ends — freezing must never break a streak (RDP-3). | — |
+| **D39** | **M1 is built by an unattended hourly cloud routine, one branch per story, CI-gated, with a final verification and auto-merge to main** *(authorized by the user 2026-09-20)* | Branches `m1/story-NNN-*` off `m1/integration`; a story merges only on green macOS CI; playbook in `docs/M1-PLAYBOOK.md`, state in `docs/M1-PROGRESS.md`. Cloud sandbox is Linux (no Xcode), so CI is the only compiler/test runner; **hardware-only checks (real camera, notification delivery, Time-Sensitive, BG refresh) are listed but cannot be gated.** The user explicitly allowed auto-merge to `main` after all automated levels pass. Cadence is hourly, ~6 stories/run, because routines cannot run more often than hourly. | The routine produces red or low-quality merges |
 
 ---
 
@@ -156,3 +164,81 @@ User asked for a status, then to run the tests and update this file, then delega
 - **D30 (Isha to Fajr) is a product judgment about a fiqh-adjacent boundary.** I'm confident it avoids refusing a valid prayer; I'm not qualified to say it's the right window, and the wording in the app must never imply it is. Needs the scholar review (OQ-1).
 - **D31's cost is real.** Combining users get a five-prompt app in v1. I judged a labelled deferral better than a half-built profile, but it is a trade against RDP-6, not a free choice.
 - SourceKit showed a "No such module 'Testing'" diagnostic on the new test file even though the build passes; I treated it as indexing noise and didn't investigate.
+
+### 2026-09-20 — Session 6 (scheduled M1 routine, run 1)
+Ran unattended per `docs/M1-PLAYBOOK.md`/D39. `gh` CLI is not installed in this sandbox at all (not just unauthenticated) — used the GitHub MCP server tools instead (this session's environment says to prefer them over `gh`/raw API access generally), verified they actually worked before relying on them, and logged the substitution in `docs/M1-PROGRESS.md` Findings per playbook §3 rather than silently swapping tools or treating it as the "no CI visibility" stop condition.
+
+**Built, tested (CI, macOS-15/Xcode 16.4), and merged to `m1/integration`** — 5 branches, 9 stories:
+- `m1/story-033-history-swiftdata` (#33): on-device SwiftData history.
+- `m1/story-028-streak-tests` (#28, #29, #30, #31): streak/resolver unit tests + `StreakSummaryPresenter`.
+- `m1/story-035-friend-payload` (#35): `FriendFacingCheckIn` + leak tests.
+- `m1/story-018-fajr-window-tests` (#18): `PrayerTimeline` tests proving Fajr is never Late.
+- `m1/story-013-time-sensitive-notification` (#13, #16): notification scheduling capped at 64.
+
+Full details (branch names, CI run URLs, per-story notes) are in `docs/M1-PROGRESS.md`, not duplicated here.
+
+**Two CI failures fixed, both Swift 6 strict-concurrency, worth remembering:**
+- A `static let` of a non-`Sendable` type (SwiftData's `Schema`) doesn't compile under strict concurrency — made it a computed `static var`.
+- A class storing `UNUserNotificationCenter` (not an audited-`Sendable` Apple type) as a stored property needs `@unchecked Sendable` with a justifying comment (both wrapper types hold only the shared `.current()` singleton and nothing else).
+- Also fixed one unrelated test-file bug: `dict?.keys ?? []` doesn't type-check (`Dictionary.Keys` isn't `ExpressibleByArrayLiteral`) — coalesce the dictionary itself instead.
+
+**NOT tested:** anything on a physical device or Simulator UI — this run was Core/ logic only (persistence, streak/resolver, a payload shape, Fajr-window logic, notification *scheduling* logic, not *delivery*). `UserNotificationScheduler`'s real `UNUserNotificationCenter` calls, `.timeSensitive` actually piercing Focus/DND, and permission-prompt behavior are exercised only through the protocol/fake in tests.
+
+**Uncertain about:** whether `@unchecked Sendable` is the idiomatic long-term answer for the two notification wrapper types vs. actor-isolating them — chose it because both hold no other mutable state, but didn't find an authoritative Apple recommendation either way.
+
+Stopped at 5 branches (playbook allows up to 6): #17 (`UserSettings` + per-prayer enable/disable) is a larger unit than the remaining run had room to implement, test, and drive through a full CI cycle including a possible fix-and-retry, and starting it without finishing would risk leaving `m1/integration` in a worse state than starting it.
+
+### 2026-09-20 — Session 5 (M1 kickoff; handed to a cloud routine)
+- Read all 30 M1 issues; found four that conflict with earlier decisions (#8, #9, #36, #37) and resolved them as D33–D35. Logged D36–D39.
+- Wrote and compile-checked (Debug build succeeded, no warnings) the foundation on `m1/integration`: `TorontoCalendar`, `PrayerSlot`, `CheckInPhase`, `PrayerTimeline`, `Prayer+Display`, `OffsetClock`, `Core/History/*` (resolver, snapshots, streak calculator), `Config/Ruki-Info.plist`, portrait/iPhone-only build settings.
+- CI now runs on `m1/**` pushes and gates on zero compiler warnings, plus a Release build (`scripts/check-no-warnings.sh`).
+- **Not tested:** none of the new logic has unit tests yet (the stories add them). No M1 story is complete. Nothing from this session was run in CI; the local Debug build is the only verification.
+- **Uncertain:** whether the cloud sandbox has `gh` authenticated and the PushNotification tool. The playbook stops safely and falls back to a GitHub mention if not.
+- User asked for a text message; SMS isn't possible, so the alert is a Claude mobile push with a GitHub-mention fallback.
+
+### 2026-09-20 — Session 7 (scheduled M1 routine, run 2)
+Continued unattended per `docs/M1-PLAYBOOK.md`/D39. Checked for stale `in-progress` branches per the routine's own start-up rule first — found none (all 5 branches from run 1 were already `merged`) — so started clean at #17.
+
+**Built, tested (CI, macOS/Xcode), and merged to `m1/integration`** — 6 branches, every one green on its **first** CI attempt (no fix-and-repush needed this run, unlike run 1):
+- `m1/story-017-disable-fajr-independently` (#17): `UserSettings` + `PromptInputs`.
+- `m1/story-015-background-refresh-horizon` (#15, **partial**): 12-day scheduling horizon + submit-only `BGTaskScheduler` wrapper, not yet wired to any trigger.
+- `m1/task-app-shell` (T1): `AppEnvironment`/`AppRouter`/`RootView`/`RukiPalette`; removed the Xcode template `ContentView`.
+- `m1/story-011-intention-screen` (#11): the niyyah/riya' onboarding screen.
+- `m1/story-009-madhab-onboarding` (#9, **partial**): Asr madhab picker only — no calculation-method picker (D34) or 3-session profile (D31), by design.
+- `m1/story-010-notification-permission` (#10): Time-Sensitive rationale screen + testable view model.
+
+Full details (branch names, CI run URLs, per-story notes) are in `docs/M1-PROGRESS.md`, not duplicated here.
+
+**One deliberate reordering, logged rather than silently done:** skipped #14 ("notification tap opens check-in") out of the playbook's listed order — it needs a check-in cover screen that doesn't exist until #19, much later, so building it now would mean inventing speculative router plumbing ahead of what #19 will actually need. Built #11 (self-contained, slots into the app shell's onboarding branch) instead. See `docs/M1-PROGRESS.md` Findings.
+
+**No new Swift 6 concurrency surprises this run** — the two patterns logged in run 1 (non-`Sendable` `static let`, `@unchecked Sendable` for a class holding only an Apple singleton) were watched for proactively and avoided on the first attempt each time, including in new territory (`BGTaskScheduler`/`BGAppRefreshTaskRequest`, verified via web search before writing code rather than guessed).
+
+**NOT tested:** any SwiftUI rendering, button wiring, or on-device behavior for the new App-shell/Onboarding views (no simulator in this sandbox); real `BGTaskScheduler` registration/delivery timing; real notification permission dialogs and Focus/DND piercing. `AppEnvironment.init()` itself has no dedicated test — flagged explicitly in `docs/M1-PROGRESS.md` as a real gap (assembling real singletons in a test host felt like low-value/flaky integration testing, not a meaningful unit test) rather than silently claimed as covered.
+
+**Uncertain about:** whether `.backgroundTask(.appRefresh(_:))` (reasoned about via web search, Apple's own doc pages were blocked by the sandbox's egress proxy) is definitely the right registration approach once T2 wires an actual trigger, vs. the older manual `BGTaskScheduler.register`. Whether computing `AppEnvironment.timeline`/`backgroundRefresh` fresh on every access (rather than caching) is the right tradeoff long-term.
+
+### 2026-09-20 — Session 7, run 3 (scheduled M1 routine) — *no session-log entry written at the time; reconstructed from `docs/M1-PROGRESS.md`'s Run log*
+Merged T2 (Today screen task), #12 (add-friends/solo), #19 (prompt→capture flow, partial), #23/#24/#25 (caption, immediate post, late path), #26 (missed-prayer mark), #34 (pause). Attempted #20 (dual capture); **blocked** after 3 CI attempts on a Swift 6 actor-isolation/`UIViewRepresentable` conflict that three different fixes couldn't resolve — full diagnosis and an untried recommended fix are in `docs/M1-PROGRESS.md`. Also reconciled a bookkeeping gap from an earlier cut-off (a `m1/story-034-pause` merge whose progress-file update and issue-close hadn't landed). Full per-story detail, CI URLs, and honesty notes are in `docs/M1-PROGRESS.md` — not duplicated here since this entry is a reconstruction, not a live log.
+
+### 2026-09-20 — Session 8 (scheduled M1 routine, run 4)
+Start-of-run reconciliation found two loose ends: `m1/story-014-notification-opens-checkin`, pushed by an earlier session with its CI *cancelled* (not failed) and never merged or logged — verified it was stale (>90 min, no in-progress marker) and reconciled it; and `m1/story-036-settings`, mid-flight from a genuinely concurrent instance of this same routine (a commit ~5 minutes old) — left it completely untouched per the playbook's own stale-branch rule, and it merged on its own partway through this run. Both are logged in `docs/M1-PROGRESS.md` Findings as the first observed real instance of the scenario that rule exists for.
+
+**Built, tested (CI), and merged to `m1/integration`:**
+- `m1/story-014-notification-opens-checkin` (#14, **partial**): reconciled/rebased the orphaned branch above; routes a tapped prompt straight to a check-in cover, still `ComingSoonScreen` pending #20.
+- `m1/story-032-calendar-grid` (#32): `CalendarGridBuilder`/`PrayerBreakdown`/`CalendarViewModel`/`CalendarView` — the first real screen to drive `StreakCalculator`/`StreakSummaryPresenter` (#28/#31), previously unit-tested but never wired to UI.
+- `m1/story-037-export-delete` (#37, **partial by design**, D35): local JSON export (photos excluded, D37) + on-device delete, both from Settings; no account/server-side data exists in M1 to delete.
+- `m1/task-debug-tools` (T3): `DebugClockScenario` (five named clock-jump targets) + a real one-off test-notification path, both in a new DEBUG-only Settings section.
+
+Full details (branch names, CI URLs, per-story notes) are in `docs/M1-PROGRESS.md`.
+
+**Concurrent-development merge overhead:** three of these four branches touched the same handful of files (`TodayView`, `SettingsView`, `SettingsViewModel`, `AppEnvironment`, `RootView`) because they were built in parallel rather than each waiting for the last to land on `m1/integration` first. Every conflict was a straightforward "keep both" (no two stories touched the same underlying logic), resolved by hand rather than trusted to auto-merge. Flagging as a judgment call, not a settled pattern, per CLAUDE.md's disagreement-logging convention.
+
+**One CI retry (T3):** a test helper referenced `UserSettings.defaultCheckInWindowMinutes` — `@MainActor`-isolated because it lives on the `@MainActor` `UserSettings` class — from a plain nonisolated function. A `static let`'s own type being trivially `Sendable` doesn't exempt it from its enclosing type's actor isolation; worth remembering alongside the `static let`/`Schema` and `@unchecked Sendable` gotchas already logged from run 1.
+
+**NOT tested:** any SwiftUI rendering (the calendar grid's layout, the Settings DEBUG section, the delete confirmation dialog) — no simulator in this sandbox. Real notification delivery for the new test-prompt button, and `ShareLink`'s actual share-sheet behavior for the export file, are both unverified beyond what the fakes exercise.
+
+**Uncertain about:** whether resolving four concurrently-developed branches' merge conflicts by hand was the right call vs. serializing them — it kept all four moving in parallel at the cost of a heavier merge process than the playbook's examples assume.
+
+Stopped at 4 branches/tasks (playbook allows up to 6) — a clean stopping point with `m1/integration` green and every touched story's issue updated.
+
+Stopped at 6 branches (playbook's stated cap). `m1/integration` green; `main` untouched — most stories are still `todo`, so the completion phase (playbook §5) does not apply yet.

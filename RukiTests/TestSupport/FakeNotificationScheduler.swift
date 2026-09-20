@@ -1,21 +1,29 @@
 import Foundation
 @testable import Ruki
 
-/// In-memory `NotificationScheduling` fake. Tracks pending windows so tests
-/// can assert on the 64-notification ceiling and dedup behavior without
-/// touching `UNUserNotificationCenter`.
+/// In-memory `NotificationScheduling` fake. Tracks the last replaced set so
+/// tests can assert on the 64-notification ceiling and what `PromptScheduler`
+/// actually requested, without touching `UNUserNotificationCenter`.
 actor FakeNotificationScheduler: NotificationScheduling {
-    private(set) var scheduled: [PrayerWindow] = []
+    private(set) var scheduled: [PromptSpec] = []
+    private(set) var lastSoundEnabled: Bool?
+    private(set) var replaceCallCount = 0
+    private(set) var testPromptSecondsFromNow: TimeInterval?
 
-    func scheduleNotification(for window: PrayerWindow) async throws {
-        scheduled.append(window)
-    }
-
-    func cancelAllPending() async {
-        scheduled.removeAll()
+    func replacePending(with specs: [PromptSpec], soundEnabled: Bool) async throws {
+        guard specs.count <= PromptPlanner.maxPending else {
+            throw NotificationSchedulingError.tooManyPending(specs.count)
+        }
+        scheduled = specs
+        lastSoundEnabled = soundEnabled
+        replaceCallCount += 1
     }
 
     func pendingCount() async -> Int {
         scheduled.count
+    }
+
+    func scheduleTestPrompt(secondsFromNow: TimeInterval) async throws {
+        testPromptSecondsFromNow = secondsFromNow
     }
 }

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keys that Xcode's generated Info.plist can't express (arrays). Merged with the
+  generated plist at build time (GENERATE_INFOPLIST_FILE + INFOPLIST_FILE).
+  Lives outside Ruki/ so the synchronized source group doesn't bundle it as a resource.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Ruki uses the camera for your check-in photo, taken after you have finished praying. Photos are never used for anything else.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.salimsoufi.Ruki.refresh-prompts</string>
+	</array>
+</dict>
+</plist>

@@ -15,4 +15,15 @@ struct PrayerSlot: Sendable, Equatable, Identifiable {
         self.window = window
         self.dayKey = TorontoCalendar.dayKey(for: window.start)
     }
+
+    /// The `Prayer` half of an `id` produced by this type — the only piece a
+    /// tapped notification's request identifier carries (RUKI-014). `dayKey`
+    /// is discarded rather than reconstructed into a full `PrayerSlot`: a
+    /// stale notification firing after a day rollover shouldn't resurrect
+    /// yesterday's slot, and every caller that has this only needs to know
+    /// which prayer to show, not its exact window.
+    static func prayer(fromID id: String) -> Prayer? {
+        guard let lastDot = id.lastIndex(of: ".") else { return nil }
+        return Prayer(rawValue: String(id[id.index(after: lastDot)...]))
+    }
 }

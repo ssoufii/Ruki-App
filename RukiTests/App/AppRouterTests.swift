@@ -39,4 +39,30 @@ struct AppRouterTests {
         settings.onboardingCompletedAt = nil
         #expect(router.destination == .onboarding)
     }
+
+    @Test("Has no pending check-in until one is opened")
+    func noPendingCheckInByDefault() {
+        let router = AppRouter(userSettings: UserSettings(defaults: freshDefaults()))
+        #expect(router.pendingCheckInSlotID == nil)
+    }
+
+    @Test("openCheckIn(forSlotID:) sets the pending slot, independent of destination")
+    func openCheckInSetsPendingSlot() {
+        let router = AppRouter(userSettings: UserSettings(defaults: freshDefaults()))
+
+        router.openCheckIn(forSlotID: "2026-09-20.fajr")
+
+        #expect(router.pendingCheckInSlotID == "2026-09-20.fajr")
+        #expect(router.destination == .onboarding) // unaffected by the pending check-in
+    }
+
+    @Test("dismissCheckIn() clears the pending slot")
+    func dismissCheckInClearsPendingSlot() {
+        let router = AppRouter(userSettings: UserSettings(defaults: freshDefaults()))
+        router.openCheckIn(forSlotID: "2026-09-20.fajr")
+
+        router.dismissCheckIn()
+
+        #expect(router.pendingCheckInSlotID == nil)
+    }
 }

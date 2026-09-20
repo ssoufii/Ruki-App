@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The one view `RukiApp` shows. Routes between onboarding and the app's
-/// main flow; each branch is a placeholder until its own story (RUKI-011,
-/// T2) builds the real screen.
+/// The one view `RukiApp` shows. Routes between onboarding (RUKI-011) and
+/// the app's main flow — `.today` is still a placeholder until T2 builds
+/// the real Today screen.
 struct RootView: View {
     let environment: AppEnvironment
 
@@ -10,7 +10,7 @@ struct RootView: View {
         Group {
             switch environment.router.destination {
             case .onboarding:
-                PlaceholderScreen(title: "Onboarding")
+                OnboardingFlow(userSettings: environment.userSettings, clock: environment.clock)
             case .today:
                 PlaceholderScreen(title: "Today")
             }

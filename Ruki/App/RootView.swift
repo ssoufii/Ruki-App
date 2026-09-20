@@ -20,7 +20,8 @@ struct RootView: View {
                     clock: environment.clock,
                     userSettings: environment.userSettings,
                     historyStore: environment.historyStore,
-                    onPauseChanged: { await environment.refreshBackgroundSchedule() }
+                    notificationAuthorizer: environment.notificationAuthorizer,
+                    onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() }
                 )
             }
         }

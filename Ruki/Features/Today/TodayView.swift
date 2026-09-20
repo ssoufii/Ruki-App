@@ -3,20 +3,26 @@ import SwiftUI
 
 /// T2: the app's home screen once onboarding is done. Shows the current or
 /// next prayer with a gentle countdown, a live card for whatever's open right
-/// now, and today's five prayer rows. Pause and check-in are only doorways
-/// here — RUKI-034 and RUKI-019 build the real flows behind them; until then
-/// tapping through shows `ComingSoonScreen`, the same honest-placeholder
-/// pattern T1 used for this whole screen.
+/// now, and today's five prayer rows. Pause (RUKI-034) and Settings
+/// (RUKI-036) are real flows from here; check-in is still a doorway —
+/// `ComingSoonScreen` until RUKI-020 gives it a real `CameraProviding` to
+/// wire in.
 struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
     @State private var showingCheckIn = false
+    @State private var showingSettings = false
     @State private var markingRow: TodayViewModel.Row?
 
-    /// Called after a pause is recorded (RUKI-034), so notifications get
-    /// re-planned against the new pause without this view owning any
-    /// scheduling logic itself.
-    let onPauseChanged: () async -> Void
+    private let clock: any ClockProviding
+    private let userSettings: UserSettings
+    private let historyStore: HistoryStore
+    private let notificationAuthorizer: any NotificationAuthorizing
+
+    /// Called after a pause or a schedule-affecting settings change is
+    /// recorded (RUKI-034, RUKI-036), so notifications get re-planned
+    /// without this view owning any scheduling logic itself.
+    let onScheduleAffectingChange: () async -> Void
 
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
@@ -28,21 +34,36 @@ struct TodayView: View {
         clock: any ClockProviding,
         userSettings: UserSettings,
         historyStore: HistoryStore,
-        onPauseChanged: @escaping () async -> Void
+        notificationAuthorizer: any NotificationAuthorizing,
+        onScheduleAffectingChange: @escaping () async -> Void
     ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
-        self.onPauseChanged = onPauseChanged
+        self.clock = clock
+        self.userSettings = userSettings
+        self.historyStore = historyStore
+        self.notificationAuthorizer = notificationAuthorizer
+        self.onScheduleAffectingChange = onScheduleAffectingChange
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text(viewModel.headline)
-                    .font(.title2)
-                    .foregroundStyle(RukiPalette.primaryText)
-                    .accessibilityAddTraits(.updatesFrequently)
+                HStack {
+                    Text(viewModel.headline)
+                        .font(.title2)
+                        .foregroundStyle(RukiPalette.primaryText)
+                        .accessibilityAddTraits(.updatesFrequently)
+                    Spacer()
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
+                    .accessibilityLabel("Settings")
+                }
 
                 if let activeRow = viewModel.activeRow {
                     checkInCard(for: activeRow)
@@ -77,11 +98,23 @@ struct TodayView: View {
             PauseDurationView { duration in
                 viewModel.pause(for: duration)
                 showingPause = false
-                Task { await onPauseChanged() }
+                Task { await onScheduleAffectingChange() }
             }
         }
         .sheet(isPresented: $showingCheckIn) {
             ComingSoonScreen(title: "Check-in")
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(
+                viewModel: SettingsViewModel(
+                    userSettings: userSettings,
+                    notificationAuthorizer: notificationAuthorizer,
+                    historyStore: historyStore,
+                    clock: clock,
+                    onScheduleAffectingChange: onScheduleAffectingChange
+                )
+            )
+            .onDisappear { viewModel.refresh() }
         }
         .sheet(item: $markingRow) { row in
             MissedPrayerMarkView(
@@ -172,6 +205,7 @@ private struct PrayerRowView: View {
         clock: environment.clock,
         userSettings: environment.userSettings,
         historyStore: environment.historyStore,
-        onPauseChanged: {}
+        notificationAuthorizer: environment.notificationAuthorizer,
+        onScheduleAffectingChange: {}
     )
 }

@@ -13,15 +13,27 @@ struct TodayView: View {
     @State private var showingCheckIn = false
     @State private var markingRow: TodayViewModel.Row?
 
+    /// Called after a pause is recorded (RUKI-034), so notifications get
+    /// re-planned against the new pause without this view owning any
+    /// scheduling logic itself.
+    let onPauseChanged: () async -> Void
+
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
     /// notion of "now", not about what wakes the UI up to ask for it again).
     private let ticker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
-    init(timeline: PrayerTimeline, clock: any ClockProviding, userSettings: UserSettings, historyStore: HistoryStore) {
+    init(
+        timeline: PrayerTimeline,
+        clock: any ClockProviding,
+        userSettings: UserSettings,
+        historyStore: HistoryStore,
+        onPauseChanged: @escaping () async -> Void
+    ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
+        self.onPauseChanged = onPauseChanged
     }
 
     var body: some View {
@@ -62,7 +74,11 @@ struct TodayView: View {
         .task { viewModel.refresh() }
         .onReceive(ticker) { _ in viewModel.refresh() }
         .sheet(isPresented: $showingPause) {
-            ComingSoonScreen(title: "Pause")
+            PauseDurationView { duration in
+                viewModel.pause(for: duration)
+                showingPause = false
+                Task { await onPauseChanged() }
+            }
         }
         .sheet(isPresented: $showingCheckIn) {
             ComingSoonScreen(title: "Check-in")
@@ -155,6 +171,7 @@ private struct PrayerRowView: View {
         timeline: environment.timeline,
         clock: environment.clock,
         userSettings: environment.userSettings,
-        historyStore: environment.historyStore
+        historyStore: environment.historyStore,
+        onPauseChanged: {}
     )
 }

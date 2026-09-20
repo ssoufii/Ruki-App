@@ -19,7 +19,8 @@ struct RootView: View {
                     timeline: environment.timeline,
                     clock: environment.clock,
                     userSettings: environment.userSettings,
-                    historyStore: environment.historyStore
+                    historyStore: environment.historyStore,
+                    onPauseChanged: { await environment.refreshBackgroundSchedule() }
                 )
             }
         }

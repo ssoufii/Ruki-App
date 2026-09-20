@@ -3,17 +3,21 @@ import SwiftUI
 
 /// T2: the app's home screen once onboarding is done. Shows the current or
 /// next prayer with a gentle countdown, a live card for whatever's open right
-/// now, and today's five prayer rows. Pause (RUKI-034) and Settings
-/// (RUKI-036) are real flows from here; check-in is still a doorway —
-/// `ComingSoonScreen` until RUKI-020 gives it a real `CameraProviding` to
-/// wire in.
+/// now, and today's five prayer rows. Pause (RUKI-034), Settings (RUKI-036),
+/// and History (RUKI-032) are real flows from here; check-in is still a
+/// doorway — `ComingSoonScreen` until RUKI-020 gives it a real
+/// `CameraProviding` to wire in.
 struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
     @State private var showingCheckIn = false
     @State private var showingSettings = false
+    @State private var showingHistory = false
     @State private var markingRow: TodayViewModel.Row?
 
+    /// Kept only to hand to `CalendarView` (RUKI-032) when History is opened
+    /// — `viewModel` already owns its own copy for Today's own rows.
+    private let timeline: PrayerTimeline
     private let clock: any ClockProviding
     private let userSettings: UserSettings
     private let historyStore: HistoryStore
@@ -40,6 +44,7 @@ struct TodayView: View {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
+        self.timeline = timeline
         self.clock = clock
         self.userSettings = userSettings
         self.historyStore = historyStore
@@ -81,12 +86,22 @@ struct TodayView: View {
                 }
                 .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 16))
 
-                Button {
-                    showingPause = true
-                } label: {
-                    Text("Pause check-ins")
-                        .font(.subheadline)
-                        .foregroundStyle(RukiPalette.secondaryText)
+                HStack {
+                    Button {
+                        showingHistory = true
+                    } label: {
+                        Text("History")
+                            .font(.subheadline)
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
+                    Spacer()
+                    Button {
+                        showingPause = true
+                    } label: {
+                        Text("Pause check-ins")
+                            .font(.subheadline)
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
                 }
             }
             .padding()
@@ -115,6 +130,11 @@ struct TodayView: View {
                 )
             )
             .onDisappear { viewModel.refresh() }
+        }
+        .sheet(isPresented: $showingHistory) {
+            NavigationStack {
+                CalendarView(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
+            }
         }
         .sheet(item: $markingRow) { row in
             MissedPrayerMarkView(

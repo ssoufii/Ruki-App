@@ -1,17 +1,12 @@
-//
-//  RukiApp.swift
-//  Ruki
-//
-//  Created by Salim Soufi on 2026-09-19.
-//
-
 import SwiftUI
 
 @main
 struct RukiApp: App {
+    @State private var environment = AppEnvironment()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView(environment: environment)
         }
     }
 }

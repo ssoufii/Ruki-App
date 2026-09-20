@@ -14,7 +14,14 @@ import SwiftUI
 final class CheckInViewModel {
     enum State: Sendable, Equatable {
         case affirm
+        /// The camera is starting or the shutter has fired — nothing to tap.
         case capturing
+        /// The camera is live and the person is framing the shot. The shutter
+        /// is theirs to press: firing it the instant the session starts would
+        /// photograph whatever the lens saw before it had warmed up, with no
+        /// chance to compose (and RDP-4's suggested subjects — your mat, the
+        /// view — need a moment to frame).
+        case framing
         case review(CapturedPhoto)
         case posted
         case failed
@@ -90,6 +97,9 @@ final class CheckInViewModel {
     /// authorization and starts the session here, not earlier, so nothing
     /// about the camera is live before the user has affirmed.
     func affirmPrayed() async {
+        // Only from a fresh start or after a failure ("Try again"); a second tap
+        // while the camera is already starting must not start it twice.
+        guard state == .affirm || state == .failed else { return }
         state = .capturing
         guard await cameraProvider.requestAuthorization() else {
             state = .failed
@@ -101,16 +111,24 @@ final class CheckInViewModel {
             state = .failed
             return
         }
+        state = .framing
+    }
+
+    /// The shutter. Only meaningful while framing.
+    func takePhoto() async {
+        guard state == .framing else { return }
+        state = .capturing
         await capture()
     }
 
-    /// A no-op once `maxRetakes` is reached — the view disables the button
-    /// at that point, but this is the real enforcement (RUKI-020).
+    /// Back to framing for one more shot — the session is still running, so
+    /// there's no restart. A no-op once `maxRetakes` is reached — the view
+    /// disables the button at that point, but this is the real enforcement
+    /// (RUKI-020).
     func retake() async {
         guard case .review = state, canRetake else { return }
         retakeCount += 1
-        state = .capturing
-        await capture()
+        state = .framing
     }
 
     /// Stops the camera session. Safe to call any time the flow ends —

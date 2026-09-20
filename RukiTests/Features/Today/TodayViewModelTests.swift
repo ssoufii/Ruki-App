@@ -216,6 +216,8 @@ struct TodayViewModelTests {
         #expect(checkInViewModel.isLate == false)
 
         await checkInViewModel.affirmPrayed()
+
+        await checkInViewModel.takePhoto()
         checkInViewModel.post()
 
         #expect(await recorder.lastMode == .spaceOnly)

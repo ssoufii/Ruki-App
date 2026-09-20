@@ -44,6 +44,8 @@ struct CheckInViewModelTests {
 
         await viewModel.affirmPrayed()
 
+        await viewModel.takePhoto()
+
         #expect(await recorder.callCount == 1)
     }
 
@@ -56,7 +58,79 @@ struct CheckInViewModelTests {
 
         await viewModel.affirmPrayed()
 
+        await viewModel.takePhoto()
+
         #expect(viewModel.state == .review(photo))
+    }
+
+    @Test("Affirming starts the camera but does not fire the shutter -- the person frames the shot and presses it")
+    func affirmDoesNotFireTheShutter() async throws {
+        let recorder = CaptureCallRecorder()
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
+
+        await viewModel.affirmPrayed()
+
+        #expect(viewModel.state == .framing)
+        #expect(await recorder.callCount == 0, "the shutter must wait for the person")
+
+        await viewModel.takePhoto()
+
+        #expect(await recorder.callCount == 1)
+        if case .review = viewModel.state {} else { Issue.record("Expected .review after the shutter, got \(viewModel.state)") }
+    }
+
+    @Test("The shutter does nothing unless the camera is framing")
+    func shutterOnlyWorksWhileFraming() async throws {
+        let recorder = CaptureCallRecorder()
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
+
+        await viewModel.takePhoto()   // still on the affirm step
+
+        #expect(viewModel.state == .affirm)
+        #expect(await recorder.callCount == 0)
+    }
+
+    @Test("Retake goes back to framing for one more shot and is then capped (RUKI-020)")
+    func retakeReturnsToFramingOnceOnly() async throws {
+        let recorder = CaptureCallRecorder()
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
+        await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
+
+        await viewModel.retake()
+        #expect(viewModel.state == .framing)
+        #expect(viewModel.retakeCount == 1)
+        #expect(viewModel.canRetake == false)
+
+        await viewModel.takePhoto()
+        await viewModel.retake()   // a second retake is refused, not merely discouraged
+
+        #expect(viewModel.retakeCount == 1)
+        if case .review = viewModel.state {} else { Issue.record("Second retake must be a no-op, got \(viewModel.state)") }
+        #expect(await recorder.callCount == 2)
+    }
+
+    @Test("Tapping \"I've prayed\" again while already framing does not restart anything")
+    func repeatedAffirmIsIgnored() async throws {
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()))
+        await viewModel.affirmPrayed()
+
+        await viewModel.affirmPrayed()
+
+        #expect(viewModel.state == .framing)
+    }
+
+    @Test("From the notification to a saved check-in takes three deliberate taps: I've prayed, the shutter, Post (RUKI-019)")
+    func checkInNeedsOnlyThreeTaps() async throws {
+        let store = try HistoryStore(modelContainer: RukiModelContainer.make(inMemory: true))
+        let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()), historyStore: store)
+
+        await viewModel.affirmPrayed()   // tap 1
+        await viewModel.takePhoto()      // tap 2
+        viewModel.post()                 // tap 3
+
+        #expect(viewModel.state == .posted)
+        #expect(try store.checkInSnapshots().count == 1)
     }
 
     @Test("A capture failure moves to .failed, never silently to .review")
@@ -67,6 +141,8 @@ struct CheckInViewModelTests {
 
         await viewModel.affirmPrayed()
 
+        await viewModel.takePhoto()
+
         #expect(viewModel.state == .failed)
     }
 
@@ -75,8 +151,11 @@ struct CheckInViewModelTests {
         let recorder = CaptureCallRecorder()
         let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
 
         await viewModel.retake()
+
+        await viewModel.takePhoto()
 
         #expect(await recorder.callCount == 2)
         #expect(viewModel.retakeCount == 1)
@@ -90,10 +169,14 @@ struct CheckInViewModelTests {
         let recorder = CaptureCallRecorder()
         let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
         await viewModel.retake()
+        await viewModel.takePhoto()
         #expect(viewModel.canRetake == false)
 
         await viewModel.retake()
+
+        await viewModel.takePhoto()
 
         #expect(await recorder.callCount == 2, "the second retake must not call the camera again")
         #expect(viewModel.retakeCount == 1)
@@ -103,9 +186,12 @@ struct CheckInViewModelTests {
     func canRetakeReflectsTheCap() async throws {
         let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()))
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
         #expect(viewModel.canRetake == true)
 
         await viewModel.retake()
+
+        await viewModel.takePhoto()
 
         #expect(viewModel.canRetake == false)
     }
@@ -116,6 +202,8 @@ struct CheckInViewModelTests {
 
         await viewModel.affirmPrayed()
 
+        await viewModel.takePhoto()
+
         #expect(viewModel.state == .failed)
     }
 
@@ -125,6 +213,8 @@ struct CheckInViewModelTests {
         let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
 
         await viewModel.retake()
+
+        await viewModel.takePhoto()
 
         #expect(await recorder.callCount == 0)
         #expect(viewModel.retakeCount == 0)
@@ -141,6 +231,7 @@ struct CheckInViewModelTests {
             historyStore: historyStore
         )
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
 
         viewModel.post()
 
@@ -158,7 +249,9 @@ struct CheckInViewModelTests {
             historyStore: historyStore
         )
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
         await viewModel.retake()
+        await viewModel.takePhoto()
 
         viewModel.post()
 
@@ -176,6 +269,7 @@ struct CheckInViewModelTests {
             historyStore: historyStore
         )
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
         viewModel.caption = "  \n Alhamdulillah \n  "
 
         viewModel.post()
@@ -194,6 +288,7 @@ struct CheckInViewModelTests {
             historyStore: historyStore
         )
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
 
         viewModel.post()
 
@@ -241,6 +336,7 @@ struct CheckInViewModelTests {
         viewModel.toggleSpaceOnly()
         #expect(viewModel.isSpaceOnly == true)
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
 
         #expect(await recorder.lastMode == .spaceOnly)
     }
@@ -260,6 +356,7 @@ struct CheckInViewModelTests {
         let recorder = CaptureCallRecorder()
         let viewModel = try makeViewModel(cameraProvider: RecordingCameraProvider(recorder: recorder))
         await viewModel.affirmPrayed()
+        await viewModel.takePhoto()
 
         viewModel.toggleSpaceOnly()
 

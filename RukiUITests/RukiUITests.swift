@@ -98,6 +98,11 @@ final class RukiUITests: XCTestCase {
         XCTAssertTrue(affirmButton.waitForExistence(timeout: 5), "Affirm step did not appear")
         affirmButton.tap()
 
+        // The camera is live and framing; the shutter is the person's to press.
+        let shutterButton = app.buttons["Take photo"]
+        XCTAssertTrue(shutterButton.waitForExistence(timeout: 10), "Camera framing step did not appear")
+        shutterButton.tap()
+
         let postButton = app.buttons["Post"]
         XCTAssertTrue(postButton.waitForExistence(timeout: 10), "Review step did not appear after capture")
         postButton.tap()

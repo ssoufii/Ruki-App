@@ -9,6 +9,7 @@ import SwiftUI
 /// Simulator (`AppEnvironment` chooses).
 struct CheckInFlowView: View {
     @State var viewModel: CheckInViewModel
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 24) {
@@ -17,6 +18,8 @@ struct CheckInFlowView: View {
                 affirmStep
             case .capturing:
                 capturingStep
+            case .framing:
+                framingStep
             case .review(let photo):
                 reviewStep(photo: photo)
             case .posted:
@@ -28,6 +31,21 @@ struct CheckInFlowView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RukiPalette.background)
+        .overlay(alignment: .topTrailing) {
+            // Closing discards: there is no draft state (PRD §7.4). Hidden once posted,
+            // where "Done" takes its place.
+            if viewModel.state != .posted {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(RukiPalette.secondaryText)
+                        .padding(12)
+                }
+                .accessibilityLabel("Close")
+            }
+        }
         .onChange(of: viewModel.state) { _, newState in
             if newState == .posted {
                 Task { await viewModel.stopSession() }
@@ -44,6 +62,28 @@ struct CheckInFlowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             ProgressView()
                 .tint(RukiPalette.accent)
+        }
+    }
+
+    /// Live preview with the shutter. The copy is RDP-4's: photograph the moment
+    /// *after*, never the prayer itself.
+    private var framingStep: some View {
+        VStack(spacing: 16) {
+            viewModel.previewView
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            Text("Photograph the moment after — your prayer space, your mat, the view, your hands.")
+                .font(.footnote)
+                .foregroundStyle(RukiPalette.secondaryText)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.takePhoto() }
+            } label: {
+                Circle()
+                    .strokeBorder(RukiPalette.accent, lineWidth: 4)
+                    .background(Circle().fill(RukiPalette.background).padding(6))
+                    .frame(width: 72, height: 72)
+            }
+            .accessibilityLabel("Take photo")
         }
     }
 
@@ -74,6 +114,11 @@ struct CheckInFlowView: View {
                     .frame(maxWidth: .infinity)
             }
             .background(RukiPalette.accent, in: RoundedRectangle(cornerRadius: 12))
+
+            // No pressure either way: the prompt is a nudge, and it stays open.
+            Button("Not yet") { dismiss() }
+                .font(.subheadline)
+                .foregroundStyle(RukiPalette.secondaryText)
         }
     }
 
@@ -85,9 +130,7 @@ struct CheckInFlowView: View {
                     .foregroundStyle(RukiPalette.secondaryText)
             }
 
-            Text("Photo captured")
-                .font(.body)
-                .foregroundStyle(RukiPalette.secondaryText)
+            photoPreview(photo)
 
             if viewModel.retakeCount > 0 {
                 Text("Retaken")
@@ -119,10 +162,38 @@ struct CheckInFlowView: View {
         }
     }
 
+    /// The rear photo, with the front photo inset when there is one — what will be saved.
+    private func photoPreview(_ photo: CapturedPhoto) -> some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let rear = UIImage(data: photo.rearImageData) {
+                Image(uiImage: rear)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            if let frontData = photo.frontImageData, let front = UIImage(data: frontData) {
+                Image(uiImage: front)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 96, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(8)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Your check-in photo")
+    }
+
     private var postedStep: some View {
-        Text(viewModel.postedMessage)
-            .font(.headline)
-            .foregroundStyle(RukiPalette.primaryText)
+        VStack(spacing: 24) {
+            Text(viewModel.postedMessage)
+                .font(.headline)
+                .foregroundStyle(RukiPalette.primaryText)
+                .multilineTextAlignment(.center)
+            Button("Done") { dismiss() }
+                .font(.headline)
+                .foregroundStyle(RukiPalette.accent)
+        }
     }
 
     private var failedStep: some View {

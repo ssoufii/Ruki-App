@@ -62,6 +62,14 @@ final class AppEnvironment {
         userSettings.resetToDefaults()
     }
 
+    /// T3 DEBUG tools: fires one real local notification ~10 seconds out,
+    /// through the same `UNUserNotificationCenter` pipeline as a real
+    /// prompt, without touching the real prompt horizon. Only ever called
+    /// from Settings' `#if DEBUG`-gated section; harmless either way.
+    func scheduleDebugTestPrompt() async {
+        try? await notificationScheduler.scheduleTestPrompt(secondsFromNow: 10)
+    }
+
     init() {
         #if DEBUG
         // A tester can jump the clock (DEBUG tools, T3) instead of waiting

@@ -12,6 +12,12 @@ protocol NotificationScheduling: Sendable {
     /// Number of notifications currently pending. Callers must keep this
     /// under iOS's hard ceiling of 64.
     func pendingCount() async -> Int
+
+    /// T3 DEBUG tools: one real notification, `secondsFromNow` seconds out,
+    /// through the same pipeline as a real prompt but under its own
+    /// identifier — never touched by `replacePending`'s prefix filter, so a
+    /// tester can fire this without disturbing the real prompt horizon.
+    func scheduleTestPrompt(secondsFromNow: TimeInterval) async throws
 }
 
 enum NotificationSchedulingError: Error, LocalizedError, Sendable, Equatable {

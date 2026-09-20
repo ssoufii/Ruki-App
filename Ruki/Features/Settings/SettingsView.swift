@@ -82,6 +82,27 @@ struct SettingsView: View {
                 // sign-in (#8) exists.
                 Text("Removes every check-in, mark, and pause stored on this device. There's no account to delete yet — that arrives with sign-in in a future update.")
             }
+
+            #if DEBUG
+            Section {
+                ForEach(DebugClockScenario.allCases) { scenario in
+                    Button(scenario.label) {
+                        viewModel.debugJump(to: scenario)
+                    }
+                }
+                Button("Reset clock", role: .destructive) {
+                    viewModel.debugResetClock()
+                }
+                .disabled(!viewModel.debugClockIsShifted)
+                Button("Send a test prompt in 10s") {
+                    viewModel.debugSendTestPrompt()
+                }
+            } header: {
+                Text("Debug")
+            } footer: {
+                Text("Jumps this build's own clock; never reaches a real device's system clock or affects anyone else.")
+            }
+            #endif
         }
         .task { await viewModel.refresh() }
         .sheet(isPresented: $showingPause) {

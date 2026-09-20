@@ -33,6 +33,10 @@ struct TodayView: View {
     /// needs the scheduler this view never otherwise touches.
     let onDeleteAllData: () async -> Void
 
+    /// T3 DEBUG tools only, forwarded through to `SettingsViewModel` — see
+    /// its own doc comment for why this is threaded unconditionally.
+    let onDebugSendTestPrompt: () async -> Void
+
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
     /// notion of "now", not about what wakes the UI up to ask for it again).
@@ -45,7 +49,8 @@ struct TodayView: View {
         historyStore: HistoryStore,
         notificationAuthorizer: any NotificationAuthorizing,
         onScheduleAffectingChange: @escaping () async -> Void,
-        onDeleteAllData: @escaping () async -> Void
+        onDeleteAllData: @escaping () async -> Void,
+        onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
@@ -57,6 +62,7 @@ struct TodayView: View {
         self.notificationAuthorizer = notificationAuthorizer
         self.onScheduleAffectingChange = onScheduleAffectingChange
         self.onDeleteAllData = onDeleteAllData
+        self.onDebugSendTestPrompt = onDebugSendTestPrompt
     }
 
     var body: some View {
@@ -134,7 +140,8 @@ struct TodayView: View {
                     historyStore: historyStore,
                     clock: clock,
                     onScheduleAffectingChange: onScheduleAffectingChange,
-                    onDeleteAllData: onDeleteAllData
+                    onDeleteAllData: onDeleteAllData,
+                    onDebugSendTestPrompt: onDebugSendTestPrompt
                 )
             )
             .onDisappear { viewModel.refresh() }

@@ -3,15 +3,15 @@ import SwiftUI
 
 /// T2: the app's home screen once onboarding is done. Shows the current or
 /// next prayer with a gentle countdown, a live card for whatever's open right
-/// now, and today's five prayer rows. Pause and check-in are only doorways
-/// here — RUKI-034 and RUKI-019 build the real flows behind them; until then
-/// tapping through shows `ComingSoonScreen`, the same honest-placeholder
-/// pattern T1 used for this whole screen.
+/// now, and today's five prayer rows. Pause (RUKI-034) and check-in
+/// (RUKI-019/020) are both real flows from here.
 struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
-    @State private var showingCheckIn = false
+    @State private var checkInRow: TodayViewModel.Row?
     @State private var markingRow: TodayViewModel.Row?
+
+    private let cameraProvider: any CameraProviding
 
     /// Called after a pause is recorded (RUKI-034), so notifications get
     /// re-planned against the new pause without this view owning any
@@ -28,11 +28,13 @@ struct TodayView: View {
         clock: any ClockProviding,
         userSettings: UserSettings,
         historyStore: HistoryStore,
+        cameraProvider: any CameraProviding,
         onPauseChanged: @escaping () async -> Void
     ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
+        self.cameraProvider = cameraProvider
         self.onPauseChanged = onPauseChanged
     }
 
@@ -80,8 +82,9 @@ struct TodayView: View {
                 Task { await onPauseChanged() }
             }
         }
-        .sheet(isPresented: $showingCheckIn) {
-            ComingSoonScreen(title: "Check-in")
+        .sheet(item: $checkInRow) { row in
+            CheckInFlowView(viewModel: viewModel.makeCheckInViewModel(for: row, cameraProvider: cameraProvider))
+                .onDisappear { viewModel.refresh() }
         }
         .sheet(item: $markingRow) { row in
             MissedPrayerMarkView(
@@ -100,7 +103,7 @@ struct TodayView: View {
         switch row.status {
         case .openOnTime, .openLate:
             Button {
-                showingCheckIn = true
+                checkInRow = row
             } label: {
                 Text("Check in for \(row.slot.prayer.displayName)")
                     .font(.headline)
@@ -172,6 +175,7 @@ private struct PrayerRowView: View {
         clock: environment.clock,
         userSettings: environment.userSettings,
         historyStore: environment.historyStore,
+        cameraProvider: environment.cameraProvider,
         onPauseChanged: {}
     )
 }

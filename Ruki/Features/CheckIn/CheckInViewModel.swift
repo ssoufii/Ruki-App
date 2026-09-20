@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// RUKI-019: the check-in state machine — affirm → camera → review → post.
 ///
@@ -19,6 +20,10 @@ final class CheckInViewModel {
         case failed
     }
 
+    /// RUKI-020: a single retake, no more — the button disables rather than
+    /// hides once this is reached, so it's visibly unavailable, not gone.
+    static let maxRetakes = 1
+
     let slot: PrayerSlot
     let isLate: Bool
 
@@ -30,6 +35,7 @@ final class CheckInViewModel {
 
     private(set) var state: State = .affirm
     private(set) var retakeCount = 0
+    var canRetake: Bool { retakeCount < Self.maxRetakes }
     /// Bound directly to the review step's text field. Sanitized (trimmed,
     /// capped at 80 characters — RUKI-023) only at `post()`, not while typing.
     var caption: String = ""
@@ -67,16 +73,41 @@ final class CheckInViewModel {
             : String(localized: "Checked in.")
     }
 
+    /// The one path that ever touches `cameraProvider` (RDP-4). Requests
+    /// authorization and starts the session here, not earlier, so nothing
+    /// about the camera is live before the user has affirmed.
     func affirmPrayed() async {
+        state = .capturing
+        guard await cameraProvider.requestAuthorization() else {
+            state = .failed
+            return
+        }
+        do {
+            try await cameraProvider.startSession()
+        } catch {
+            state = .failed
+            return
+        }
+        await capture()
+    }
+
+    /// A no-op once `maxRetakes` is reached — the view disables the button
+    /// at that point, but this is the real enforcement (RUKI-020).
+    func retake() async {
+        guard case .review = state, canRetake else { return }
+        retakeCount += 1
         state = .capturing
         await capture()
     }
 
-    func retake() async {
-        guard case .review = state else { return }
-        retakeCount += 1
-        state = .capturing
-        await capture()
+    /// Stops the camera session. Safe to call any time the flow ends —
+    /// after posting, or if the sheet is dismissed some other way.
+    func stopSession() async {
+        await cameraProvider.stopSession()
+    }
+
+    var previewView: AnyView {
+        cameraProvider.makePreviewView()
     }
 
     /// Records the check-in and moves straight to `.posted` — no draft to

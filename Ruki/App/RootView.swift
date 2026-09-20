@@ -20,6 +20,7 @@ struct RootView: View {
                     clock: environment.clock,
                     userSettings: environment.userSettings,
                     historyStore: environment.historyStore,
+                    cameraProvider: environment.cameraProvider,
                     onPauseChanged: { await environment.refreshBackgroundSchedule() }
                 )
             }

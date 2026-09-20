@@ -11,6 +11,7 @@ final class AppEnvironment {
     let userSettings: UserSettings
     let historyStore: HistoryStore
     let notificationAuthorizer: any NotificationAuthorizing
+    let cameraProvider: any CameraProviding
     let router: AppRouter
 
     private let persistence: any PersistenceProviding
@@ -56,6 +57,15 @@ final class AppEnvironment {
         let clock: any ClockProviding = SystemClock()
         #endif
         self.clock = clock
+
+        #if targetEnvironment(simulator)
+        // The Simulator has no camera at all — not a fallback path, a
+        // different device entirely. `PlaceholderCameraProvider` keeps the
+        // whole check-in flow exercisable there and in CI.
+        cameraProvider = PlaceholderCameraProvider(clock: clock)
+        #else
+        cameraProvider = AVCameraProvider()
+        #endif
 
         let userSettings = UserSettings()
         self.userSettings = userSettings

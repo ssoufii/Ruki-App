@@ -5,12 +5,11 @@ import Foundation
 /// `UNUserNotificationCenter`, RUKI-013).
 ///
 /// Deliberately does **not** wrap `register(forTaskWithIdentifier:using:
-/// launchHandler:)`: that call has to happen at app-launch, attached to a
-/// `Scene`, via SwiftUI's `.backgroundTask(.appRefresh(_:))` modifier (the
-/// iOS 17+ replacement for manually registering and casting a `BGTask`) —
-/// it belongs with the app shell (RUKI T1), not yet built. This protocol
-/// covers the part that's real Core logic: deciding *when* to ask for the
-/// next wake-up.
+/// launchHandler:)`: that call happens at app-launch, attached to a `Scene`,
+/// via SwiftUI's `.backgroundTask(.appRefresh(_:))` modifier (the iOS 17+
+/// replacement for manually registering and casting a `BGTask`) — it lives
+/// on `RukiApp` (T2). This protocol covers the part that's real Core logic:
+/// deciding *when* to ask for the next wake-up.
 protocol BackgroundRefreshScheduling: Sendable {
     /// Requests a background refresh no earlier than `earliestBeginDate`.
     /// iOS gives no delivery guarantee on timing or even that it fires at

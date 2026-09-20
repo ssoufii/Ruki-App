@@ -2,10 +2,9 @@ import Foundation
 
 /// Ties the 12-day scheduling horizon (`PromptRefreshCoordinator`) to
 /// `BGTaskScheduler` (RUKI-015): the one call a background-refresh launch
-/// handler needs to make. Registering that launch handler itself happens
-/// via SwiftUI's `.backgroundTask(.appRefresh(_:))` modifier on a `Scene` —
-/// it needs the app shell (RUKI T1), not yet built — which is expected to
-/// call `refreshAndScheduleNext` here and nothing more.
+/// handler needs to make. Registering that launch handler happens via
+/// SwiftUI's `.backgroundTask(.appRefresh(_:))` modifier on `RukiApp`'s
+/// `Scene` (T2), which calls `refreshAndScheduleNext` here and nothing more.
 struct BackgroundRefresh: Sendable {
     /// Must match `BGTaskSchedulerPermittedIdentifiers` in `Ruki-Info.plist`.
     static let taskIdentifier = "com.salimsoufi.Ruki.refresh-prompts"
@@ -21,10 +20,10 @@ struct BackgroundRefresh: Sendable {
     let scheduler: any BackgroundRefreshScheduling
 
     /// Refreshes the pending notifications, then requests the next
-    /// background wake-up. Also what app-launch, foreground, a settings
-    /// change, or a pause change should call directly (no background-task
-    /// machinery needed there) — those hooks land with the app shell (T1)
-    /// and the screens that own each trigger (T2, RUKI-034).
+    /// background wake-up. `RukiApp` (T2) calls this directly on launch and
+    /// foreground too (no background-task machinery needed for those). A
+    /// settings change (RUKI-036) or a pause change (RUKI-034) should call
+    /// it the same way once those screens exist.
     func refreshAndScheduleNext(inputs: PromptInputs) async throws {
         try await coordinator.refresh(inputs: inputs)
         try await scheduler.submit(

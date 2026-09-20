@@ -40,8 +40,13 @@ protocol CameraProviding: Sendable {
     func stopSession() async
 
     /// A live view of whatever the session currently sees, for the
-    /// `.capturing` step. Must only be called after `startSession()`.
-    @MainActor func makePreviewView() -> AnyView
+    /// `.capturing` step. Must only be called after `startSession()`. Plain
+    /// `nonisolated`, not `@MainActor`: it only builds a value type (the
+    /// `UIViewRepresentable` doesn't touch UIKit until SwiftUI calls
+    /// `makeUIView` on the main thread itself), and conformers that hold
+    /// their session behind actor isolation would otherwise have to cross a
+    /// *different* global actor to build it.
+    nonisolated func makePreviewView() -> AnyView
 
     func capturePhoto(mode: CaptureMode) async throws -> CapturedPhoto
 }

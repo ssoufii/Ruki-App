@@ -22,7 +22,7 @@ struct PlaceholderCameraProvider: CameraProviding {
 
     func stopSession() async {}
 
-    @MainActor func makePreviewView() -> AnyView {
+    nonisolated func makePreviewView() -> AnyView {
         AnyView(
             ZStack {
                 RukiPalette.surface

@@ -25,7 +25,7 @@ struct FakeCameraProvider: CameraProviding {
 
     func stopSession() async {}
 
-    @MainActor func makePreviewView() -> AnyView { AnyView(EmptyView()) }
+    nonisolated func makePreviewView() -> AnyView { AnyView(EmptyView()) }
 
     func capturePhoto(mode: CaptureMode) async throws -> CapturedPhoto {
         guard let photoToReturn else { throw CaptureFailure() }

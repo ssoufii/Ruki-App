@@ -151,7 +151,7 @@ private struct FakeCameraProvider: CameraProviding {
 
     func stopSession() async {}
 
-    @MainActor func makePreviewView() -> AnyView {
+    nonisolated func makePreviewView() -> AnyView {
         AnyView(RukiPalette.surface)
     }
 

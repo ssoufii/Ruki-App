@@ -33,7 +33,7 @@ struct RecordingCameraProvider: CameraProviding {
 
     func stopSession() async {}
 
-    @MainActor func makePreviewView() -> AnyView { AnyView(EmptyView()) }
+    nonisolated func makePreviewView() -> AnyView { AnyView(EmptyView()) }
 
     func capturePhoto(mode: CaptureMode) async throws -> CapturedPhoto {
         await recorder.recordCall(mode: mode)

@@ -2,9 +2,11 @@ import SwiftUI
 
 /// The onboarding flow `RootView` shows until `userSettings.onboardingCompletedAt`
 /// is set: madhab (RUKI-009, partial by design — D31/D34), notification
-/// permission (RUKI-010), then intention (RUKI-011) — matching PRD §7.1's
-/// order. Add-friends (#12) lands as its own story, adding one more step
-/// before completion moves there.
+/// permission (RUKI-010), intention (RUKI-011), then add-friends (RUKI-012)
+/// — matching PRD §7.1's order. Add-friends is last and its "Skip for now"
+/// path is what actually completes onboarding; there's no real add-friend
+/// mechanism in M1 (Circle is M2), so the app must reach `.today` with zero
+/// friends every time.
 struct OnboardingFlow: View {
     let userSettings: UserSettings
     let clock: any ClockProviding
@@ -14,6 +16,7 @@ struct OnboardingFlow: View {
         case madhab
         case notificationPermission
         case intention
+        case addFriends
     }
 
     @State private var step: Step = .madhab
@@ -32,6 +35,10 @@ struct OnboardingFlow: View {
             }
         case .intention:
             IntentionView {
+                step = .addFriends
+            }
+        case .addFriends:
+            AddFriendsView {
                 userSettings.onboardingCompletedAt = clock.now()
             }
         }

@@ -60,6 +60,29 @@ struct HistoryStoreTests {
         #expect(snapshots.first?.isLate == true)
     }
 
+    @Test("recordCheckIn persists the caption when one is given, and defaults to nil (RUKI-023)")
+    func recordCheckInPersistsCaption() throws {
+        let container = try RukiModelContainer.make(inMemory: true)
+        let store = HistoryStore(modelContainer: container)
+        let withCaption = makeSlot(prayer: .fajr, start: referenceDate)
+        let withoutCaption = makeSlot(prayer: .dhuhr, start: referenceDate.addingTimeInterval(3600))
+
+        try store.recordCheckIn(
+            for: withCaption, isLate: false, checkedInAt: referenceDate,
+            frontImageData: nil, rearImageData: nil, expiresAt: referenceDate.addingTimeInterval(3600),
+            caption: "Alhamdulillah"
+        )
+        try store.recordCheckIn(
+            for: withoutCaption, isLate: false, checkedInAt: referenceDate,
+            frontImageData: nil, rearImageData: nil, expiresAt: referenceDate.addingTimeInterval(3600)
+        )
+
+        let context = ModelContext(container)
+        let records = try context.fetch(FetchDescriptor<CheckInRecord>())
+        #expect(records.first { $0.slotID == withCaption.id }?.caption == "Alhamdulillah")
+        #expect(records.first { $0.slotID == withoutCaption.id }?.caption == nil)
+    }
+
     @Test("Recording a mark makes it show up as a snapshot, and a second mark replaces the first")
     func recordsMark() throws {
         let store = try makeStore()

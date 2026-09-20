@@ -30,6 +30,9 @@ final class CheckInViewModel {
 
     private(set) var state: State = .affirm
     private(set) var retakeCount = 0
+    /// Bound directly to the review step's text field. Sanitized (trimmed,
+    /// capped at 80 characters — RUKI-023) only at `post()`, not while typing.
+    var caption: String = ""
 
     /// - Parameters:
     ///   - isLate: decided by the caller from `PrayerTimeline.phase`, not
@@ -87,7 +90,8 @@ final class CheckInViewModel {
                 checkedInAt: clock.now(),
                 frontImageData: photo.frontImageData,
                 rearImageData: photo.rearImageData,
-                expiresAt: expiresAt
+                expiresAt: expiresAt,
+                caption: CheckInRules.sanitizedCaption(caption)
             )
             state = .posted
         } catch {

@@ -19,6 +19,9 @@ final class CheckInRecord {
     var rearImageData: Data?
     /// When the next prayer begins (D23/D37) — the moment the photo(s) purge.
     var expiresAt: Date
+    /// Optional, trimmed, capped at 80 characters by `CheckInRules` before it
+    /// ever reaches here (RUKI-023). Matches PRD §10.3's `CheckIn.caption?`.
+    var caption: String?
 
     init(
         slotID: String,
@@ -28,7 +31,8 @@ final class CheckInRecord {
         checkedInAt: Date,
         frontImageData: Data?,
         rearImageData: Data?,
-        expiresAt: Date
+        expiresAt: Date,
+        caption: String? = nil
     ) {
         self.slotID = slotID
         self.dayKey = dayKey
@@ -38,5 +42,6 @@ final class CheckInRecord {
         self.frontImageData = frontImageData
         self.rearImageData = rearImageData
         self.expiresAt = expiresAt
+        self.caption = caption
     }
 }

@@ -26,7 +26,8 @@ final class HistoryStore {
         checkedInAt: Date,
         frontImageData: Data?,
         rearImageData: Data?,
-        expiresAt: Date
+        expiresAt: Date,
+        caption: String? = nil
     ) throws {
         if let existing = try fetchCheckIn(slotID: slot.id) {
             existing.isLate = isLate
@@ -34,6 +35,7 @@ final class HistoryStore {
             existing.frontImageData = frontImageData
             existing.rearImageData = rearImageData
             existing.expiresAt = expiresAt
+            existing.caption = caption
         } else {
             modelContext.insert(
                 CheckInRecord(
@@ -44,7 +46,8 @@ final class HistoryStore {
                     checkedInAt: checkedInAt,
                     frontImageData: frontImageData,
                     rearImageData: rearImageData,
-                    expiresAt: expiresAt
+                    expiresAt: expiresAt,
+                    caption: caption
                 )
             )
         }

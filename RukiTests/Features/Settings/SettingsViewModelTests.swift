@@ -34,7 +34,7 @@ struct SettingsViewModelTests {
     func changingMadhabWritesThroughAndRefreshes() async throws {
         let userSettings = UserSettings(defaults: freshDefaults())
         let recorder = RefreshRecorder()
-        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: recorder.record)
+        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: { await recorder.record() })
 
         viewModel.madhab = .hanafi
 
@@ -47,7 +47,7 @@ struct SettingsViewModelTests {
     func changingWindowDoesNotRefreshSchedule() async throws {
         let userSettings = UserSettings(defaults: freshDefaults())
         let recorder = RefreshRecorder()
-        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: recorder.record)
+        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: { await recorder.record() })
 
         viewModel.checkInWindowMinutes = 10
 
@@ -60,7 +60,7 @@ struct SettingsViewModelTests {
     func disablingAPrayerWritesThroughAndRefreshes() async throws {
         let userSettings = UserSettings(defaults: freshDefaults())
         let recorder = RefreshRecorder()
-        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: recorder.record)
+        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: { await recorder.record() })
 
         viewModel.setPrayer(.fajr, enabled: false)
 
@@ -87,7 +87,7 @@ struct SettingsViewModelTests {
     func spaceOnlyDefaultDoesNotRefreshSchedule() async throws {
         let userSettings = UserSettings(defaults: freshDefaults())
         let recorder = RefreshRecorder()
-        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: recorder.record)
+        let (viewModel, _) = try makeViewModel(userSettings: userSettings, onScheduleAffectingChange: { await recorder.record() })
 
         viewModel.spaceOnlyDefault = true
 
@@ -127,7 +127,7 @@ struct SettingsViewModelTests {
     @Test("Pausing from Settings records the pause and triggers a schedule refresh")
     func pausingRecordsPauseAndRefreshes() async throws {
         let recorder = RefreshRecorder()
-        let (viewModel, historyStore) = try makeViewModel(onScheduleAffectingChange: recorder.record)
+        let (viewModel, historyStore) = try makeViewModel(onScheduleAffectingChange: { await recorder.record() })
 
         viewModel.pause(for: .threeDays)
 

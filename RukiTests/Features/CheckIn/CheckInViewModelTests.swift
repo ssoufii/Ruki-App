@@ -149,6 +149,24 @@ struct CheckInViewModelTests {
         #expect(snapshots == [CheckInSnapshot(slotID: viewModel.slot.id, isLate: true)])
     }
 
+    @Test("RUKI-027: posting after a retake stores the retake count")
+    func postingAfterRetakeStoresRetakeCount() async throws {
+        let container = try RukiModelContainer.make(inMemory: true)
+        let historyStore = HistoryStore(modelContainer: container)
+        let viewModel = try makeViewModel(
+            cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()),
+            historyStore: historyStore
+        )
+        await viewModel.affirmPrayed()
+        await viewModel.retake()
+
+        viewModel.post()
+
+        let context = ModelContext(container)
+        let record = try #require(try context.fetch(FetchDescriptor<CheckInRecord>()).first)
+        #expect(record.retakeCount == 1)
+    }
+
     @Test("Posting sanitizes the caption (trimmed, capped at 80) before it's stored")
     func postingSanitizesCaption() async throws {
         let container = try RukiModelContainer.make(inMemory: true)

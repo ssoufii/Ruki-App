@@ -135,7 +135,8 @@ final class CheckInViewModel {
                 frontImageData: photo.frontImageData,
                 rearImageData: photo.rearImageData,
                 expiresAt: expiresAt,
-                caption: CheckInRules.sanitizedCaption(caption)
+                caption: CheckInRules.sanitizedCaption(caption),
+                retakeCount: retakeCount
             )
             state = .posted
         } catch {

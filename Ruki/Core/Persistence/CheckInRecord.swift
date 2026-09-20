@@ -22,6 +22,11 @@ final class CheckInRecord {
     /// Optional, trimmed, capped at 80 characters by `CheckInRules` before it
     /// ever reaches here (RUKI-023). Matches PRD §10.3's `CheckIn.caption?`.
     var caption: String?
+    /// How many times the user retook the photo before posting (RUKI-027) —
+    /// tracked as a plain count, never surfaced as anything but a small,
+    /// neutral marker (CLAUDE.md tone rules: no judgment). Defaults to 0 so
+    /// existing rows need no migration.
+    var retakeCount: Int = 0
 
     init(
         slotID: String,
@@ -32,7 +37,8 @@ final class CheckInRecord {
         frontImageData: Data?,
         rearImageData: Data?,
         expiresAt: Date,
-        caption: String? = nil
+        caption: String? = nil,
+        retakeCount: Int = 0
     ) {
         self.slotID = slotID
         self.dayKey = dayKey
@@ -43,5 +49,6 @@ final class CheckInRecord {
         self.rearImageData = rearImageData
         self.expiresAt = expiresAt
         self.caption = caption
+        self.retakeCount = retakeCount
     }
 }

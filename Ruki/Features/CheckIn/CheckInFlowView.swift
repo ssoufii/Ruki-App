@@ -89,6 +89,12 @@ struct CheckInFlowView: View {
                 .font(.body)
                 .foregroundStyle(RukiPalette.secondaryText)
 
+            if viewModel.retakeCount > 0 {
+                Text("Retaken")
+                    .font(.caption2)
+                    .foregroundStyle(RukiPalette.secondaryText)
+            }
+
             TextField("Add a caption (optional)", text: $viewModel.caption)
                 .textFieldStyle(.roundedBorder)
                 .foregroundStyle(RukiPalette.primaryText)

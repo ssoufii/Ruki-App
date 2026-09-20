@@ -19,6 +19,7 @@ import XCTest
 final class RukiUITests: XCTestCase {
     private var app: XCUIApplication!
 
+    @MainActor
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()

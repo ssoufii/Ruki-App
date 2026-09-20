@@ -17,17 +17,20 @@ struct SettingsViewModelTests {
     private func makeViewModel(
         userSettings: UserSettings? = nil,
         authorizer: any NotificationAuthorizing = FakeNotificationAuthorizer(),
+        clock: any ClockProviding = FixedClock(date: ISO8601DateFormatter().date(from: "2026-09-19T12:00:00Z")!),
         onScheduleAffectingChange: @escaping () async -> Void = {},
-        onDeleteAllData: @escaping () async -> Void = {}
+        onDeleteAllData: @escaping () async -> Void = {},
+        onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) throws -> (SettingsViewModel, HistoryStore) {
         let historyStore = HistoryStore(modelContainer: try RukiModelContainer.make(inMemory: true))
         let viewModel = SettingsViewModel(
             userSettings: userSettings ?? UserSettings(defaults: freshDefaults()),
             notificationAuthorizer: authorizer,
             historyStore: historyStore,
-            clock: FixedClock(date: referenceDate),
+            clock: clock,
             onScheduleAffectingChange: onScheduleAffectingChange,
-            onDeleteAllData: onDeleteAllData
+            onDeleteAllData: onDeleteAllData,
+            onDebugSendTestPrompt: onDebugSendTestPrompt
         )
         return (viewModel, historyStore)
     }
@@ -173,6 +176,54 @@ struct SettingsViewModelTests {
         try await Task.sleep(for: .milliseconds(10))
         #expect(await recorder.count == 1)
     }
+
+    #if DEBUG
+    @Test("debugJump moves an OffsetClock to the scenario's target instant")
+    func debugJumpMovesOffsetClock() throws {
+        let offsetClock = OffsetClock(base: FixedClock(date: referenceDate))
+        let (viewModel, _) = try makeViewModel(clock: offsetClock)
+        #expect(viewModel.debugClockIsShifted == false)
+
+        viewModel.debugJump(to: .dhuhrJustBegan)
+
+        #expect(viewModel.debugClockIsShifted == true)
+        #expect(offsetClock.now() == DebugClockScenario.dhuhrJustBegan.date(referenceNow: referenceDate))
+    }
+
+    @Test("debugResetClock returns an OffsetClock to the real time")
+    func debugResetClockUndoesTheJump() throws {
+        let offsetClock = OffsetClock(base: FixedClock(date: referenceDate))
+        let (viewModel, _) = try makeViewModel(clock: offsetClock)
+        viewModel.debugJump(to: .ishaJustBegan)
+        #expect(viewModel.debugClockIsShifted == true)
+
+        viewModel.debugResetClock()
+
+        #expect(viewModel.debugClockIsShifted == false)
+        #expect(offsetClock.now() == referenceDate)
+    }
+
+    @Test("debugJump/debugResetClock are no-ops on a plain (non-Offset) clock, never a crash")
+    func debugToolsAreNoOpsOnAPlainClock() throws {
+        let (viewModel, _) = try makeViewModel(clock: FixedClock(date: referenceDate))
+
+        viewModel.debugJump(to: .fajrOpen)
+        viewModel.debugResetClock()
+
+        #expect(viewModel.debugClockIsShifted == false)
+    }
+
+    @Test("debugSendTestPrompt forwards to onDebugSendTestPrompt")
+    func debugSendTestPromptForwards() async throws {
+        let recorder = RefreshRecorder()
+        let (viewModel, _) = try makeViewModel(onDebugSendTestPrompt: { await recorder.record() })
+
+        viewModel.debugSendTestPrompt()
+
+        try await Task.sleep(for: .milliseconds(10))
+        #expect(await recorder.count == 1)
+    }
+    #endif
 }
 
 private extension JSONDecoder {

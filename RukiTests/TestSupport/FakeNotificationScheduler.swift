@@ -8,6 +8,7 @@ actor FakeNotificationScheduler: NotificationScheduling {
     private(set) var scheduled: [PromptSpec] = []
     private(set) var lastSoundEnabled: Bool?
     private(set) var replaceCallCount = 0
+    private(set) var testPromptSecondsFromNow: TimeInterval?
 
     func replacePending(with specs: [PromptSpec], soundEnabled: Bool) async throws {
         guard specs.count <= PromptPlanner.maxPending else {
@@ -20,5 +21,9 @@ actor FakeNotificationScheduler: NotificationScheduling {
 
     func pendingCount() async -> Int {
         scheduled.count
+    }
+
+    func scheduleTestPrompt(secondsFromNow: TimeInterval) async throws {
+        testPromptSecondsFromNow = secondsFromNow
     }
 }

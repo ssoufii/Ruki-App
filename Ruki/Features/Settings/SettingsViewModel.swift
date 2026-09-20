@@ -16,6 +16,11 @@ final class SettingsViewModel {
     private let clock: any ClockProviding
     private let onScheduleAffectingChange: () async -> Void
     private let onDeleteAllData: () async -> Void
+    /// T3 DEBUG tools only: fires a one-off test notification. Threaded
+    /// unconditionally through init like every other callback here — the
+    /// Settings section that ever calls it is `#if DEBUG`-gated, so this is
+    /// simply unused in a release build, not unsafe to have.
+    private let onDebugSendTestPrompt: () async -> Void
 
     private(set) var notificationStatus: NotificationAuthorizationStatus = .notDetermined
     private(set) var isPaused = false
@@ -57,7 +62,8 @@ final class SettingsViewModel {
         historyStore: HistoryStore,
         clock: any ClockProviding,
         onScheduleAffectingChange: @escaping () async -> Void,
-        onDeleteAllData: @escaping () async -> Void
+        onDeleteAllData: @escaping () async -> Void,
+        onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) {
         self.userSettings = userSettings
         self.notificationAuthorizer = notificationAuthorizer
@@ -65,6 +71,7 @@ final class SettingsViewModel {
         self.clock = clock
         self.onScheduleAffectingChange = onScheduleAffectingChange
         self.onDeleteAllData = onDeleteAllData
+        self.onDebugSendTestPrompt = onDebugSendTestPrompt
     }
 
     /// Refreshes the notification-permission status (which only the system
@@ -142,4 +149,33 @@ final class SettingsViewModel {
         userSettings.enabledPrayers = enabledPrayers
         Task { await onScheduleAffectingChange() }
     }
+
+    #if DEBUG
+    /// `nil` on `SystemClock`, which release builds always use — `clock`
+    /// only ever becomes an `OffsetClock` under `#if DEBUG` in
+    /// `AppEnvironment.init()`. The Settings section that reads this is
+    /// itself `#if DEBUG`-gated, so this is belt-and-suspenders, not the
+    /// only thing keeping it out of a release build.
+    var debugClockIsShifted: Bool {
+        (clock as? OffsetClock)?.isShifted ?? false
+    }
+
+    /// T3: jumps the DEBUG clock straight to a named scenario instead of
+    /// waiting for the real adhan.
+    func debugJump(to scenario: DebugClockScenario) {
+        (clock as? OffsetClock)?.jump(to: scenario.date(referenceNow: clock.now()))
+    }
+
+    /// T3: back to the real wall clock.
+    func debugResetClock() {
+        (clock as? OffsetClock)?.reset()
+    }
+
+    /// T3: fires a real one-off local notification ~10 seconds out, through
+    /// the actual `UNUserNotificationCenter` pipeline, to verify delivery on
+    /// a device without disturbing the real prompt horizon.
+    func debugSendTestPrompt() {
+        Task { await onDebugSendTestPrompt() }
+    }
+    #endif
 }

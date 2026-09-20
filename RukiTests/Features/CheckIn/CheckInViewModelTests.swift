@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import Ruki
 
@@ -112,6 +113,41 @@ struct CheckInViewModelTests {
         #expect(viewModel.state == .posted)
         let snapshots = try historyStore.checkInSnapshots()
         #expect(snapshots == [CheckInSnapshot(slotID: viewModel.slot.id, isLate: true)])
+    }
+
+    @Test("Posting sanitizes the caption (trimmed, capped at 80) before it's stored")
+    func postingSanitizesCaption() async throws {
+        let container = try RukiModelContainer.make(inMemory: true)
+        let historyStore = HistoryStore(modelContainer: container)
+        let viewModel = try makeViewModel(
+            cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()),
+            historyStore: historyStore
+        )
+        await viewModel.affirmPrayed()
+        viewModel.caption = "  \n Alhamdulillah \n  "
+
+        viewModel.post()
+
+        let context = ModelContext(container)
+        let record = try #require(try context.fetch(FetchDescriptor<CheckInRecord>()).first)
+        #expect(record.caption == "Alhamdulillah")
+    }
+
+    @Test("An empty caption is stored as nil, not an empty string")
+    func emptyCaptionStoresAsNil() async throws {
+        let container = try RukiModelContainer.make(inMemory: true)
+        let historyStore = HistoryStore(modelContainer: container)
+        let viewModel = try makeViewModel(
+            cameraProvider: RecordingCameraProvider(recorder: CaptureCallRecorder()),
+            historyStore: historyStore
+        )
+        await viewModel.affirmPrayed()
+
+        viewModel.post()
+
+        let context = ModelContext(container)
+        let record = try #require(try context.fetch(FetchDescriptor<CheckInRecord>()).first)
+        #expect(record.caption == nil)
     }
 
     @Test("Posting before a photo exists is a no-op -- nothing is recorded")

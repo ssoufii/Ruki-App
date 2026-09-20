@@ -66,6 +66,10 @@ struct CheckInFlowView: View {
                 .font(.body)
                 .foregroundStyle(RukiPalette.secondaryText)
 
+            TextField("Add a caption (optional)", text: $viewModel.caption)
+                .textFieldStyle(.roundedBorder)
+                .foregroundStyle(RukiPalette.primaryText)
+
             Button {
                 viewModel.post()
             } label: {

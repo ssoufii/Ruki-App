@@ -1,16 +1,18 @@
 import SwiftUI
 
 /// The onboarding flow `RootView` shows until `userSettings.onboardingCompletedAt`
-/// is set: madhab (RUKI-009, partial by design — D31/D34) then intention
-/// (RUKI-011). Notification permission (#10) and add-friends (#12) land as
-/// their own stories, adding further steps before completion moves to the
-/// last of them.
+/// is set: madhab (RUKI-009, partial by design — D31/D34), notification
+/// permission (RUKI-010), then intention (RUKI-011) — matching PRD §7.1's
+/// order. Add-friends (#12) lands as its own story, adding one more step
+/// before completion moves there.
 struct OnboardingFlow: View {
     let userSettings: UserSettings
     let clock: any ClockProviding
+    let notificationAuthorizer: any NotificationAuthorizing
 
     private enum Step {
         case madhab
+        case notificationPermission
         case intention
     }
 
@@ -20,6 +22,12 @@ struct OnboardingFlow: View {
         switch step {
         case .madhab:
             MadhabSelectionView(madhab: madhabBinding) {
+                step = .notificationPermission
+            }
+        case .notificationPermission:
+            NotificationPermissionView(
+                viewModel: NotificationPermissionViewModel(authorizer: notificationAuthorizer)
+            ) {
                 step = .intention
             }
         case .intention:
@@ -38,5 +46,5 @@ struct OnboardingFlow: View {
 }
 
 #Preview {
-    OnboardingFlow(userSettings: UserSettings(), clock: SystemClock())
+    OnboardingFlow(userSettings: UserSettings(), clock: SystemClock(), notificationAuthorizer: SystemNotificationAuthorizer())
 }

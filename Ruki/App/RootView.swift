@@ -10,7 +10,11 @@ struct RootView: View {
         Group {
             switch environment.router.destination {
             case .onboarding:
-                OnboardingFlow(userSettings: environment.userSettings, clock: environment.clock)
+                OnboardingFlow(
+                    userSettings: environment.userSettings,
+                    clock: environment.clock,
+                    notificationAuthorizer: environment.notificationAuthorizer
+                )
             case .today:
                 PlaceholderScreen(title: "Today")
             }

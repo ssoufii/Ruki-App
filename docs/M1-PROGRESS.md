@@ -22,7 +22,7 @@ Every story gets its own branch `m1/story-NNN-slug` (tasks: `m1/task-slug`), mer
 | 12 | T1 App shell (task) | `m1/task-app-shell` | merged | `AppEnvironment` (`@MainActor` composition root: `OffsetClock`/`SystemClock`, `SwiftDataPersistence` with in-memory fallback instead of a crash, computed `timeline`/`backgroundRefresh` so they never read stale settings), `AppRouter` (reads `onboardingCompletedAt` live), `RootView` (placeholder onboarding/today branches — real screens are RUKI-011/T2), `RukiPalette` (base tokens only, no red, no state-color semantics — those are RUKI-032's). Moved `RukiApp.swift` into `App/`, removed the unused `ContentView.swift` template. CI: https://github.com/ssoufii/Ruki-App/actions/runs/35505659007 |
 | 13 | #14 Tap opens check-in | | todo | |
 | 14 | #11 Intention screen | `m1/story-011-intention-screen` | merged | `IntentionView` (RDP-1 copy, "I showed up" framing) + `OnboardingFlow`, wired into `RootView`'s onboarding branch; completes onboarding on continue (only step that exists yet — #9/#10/#12 add further steps). CI: https://github.com/ssoufii/Ruki-App/actions/runs/35505984812 |
-| 15 | #9 Onboarding madhab (partial by design) | | todo | |
+| 15 | #9 Onboarding madhab (partial by design) | `m1/story-009-madhab-onboarding` | partial | `MadhabSelectionView` (Asr madhab picker, writes to `UserSettings.madhab`) + read-only "ISNA — Toronto" method row (D34); no 3-session profile (D31). Sequenced before intention in `OnboardingFlow`. Issue left open. CI: https://github.com/ssoufii/Ruki-App/actions/runs/35506262711 |
 | 16 | #10 Notification permission | | todo | |
 | 17 | T2 Today screen (task) | | todo | |
 | 18 | #12 Add-friends skippable / solo works | | todo | |

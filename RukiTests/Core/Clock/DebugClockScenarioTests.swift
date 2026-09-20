@@ -13,7 +13,10 @@ struct DebugClockScenarioTests {
     private func phase(_ scenario: DebugClockScenario) -> CheckInPhase {
         let target = scenario.date(referenceNow: referenceDate)
         let slot = timeline.activeSlot(at: target)!
-        return timeline.phase(of: slot, at: target, userWindowMinutes: UserSettings.defaultCheckInWindowMinutes)
+        // The literal default, not `UserSettings.defaultCheckInWindowMinutes`:
+        // that property is `@MainActor`-isolated (it lives on `UserSettings`),
+        // and this pure test helper has no reason to be.
+        return timeline.phase(of: slot, at: target, userWindowMinutes: 30)
     }
 
     @Test("Every scenario lands inside a real, currently-open prayer window")

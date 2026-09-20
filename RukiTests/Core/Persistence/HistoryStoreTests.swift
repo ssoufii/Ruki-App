@@ -140,6 +140,50 @@ struct HistoryStoreTests {
         #expect(live.frontImageData == Data([0x3]) && live.rearImageData == Data([0x4]))
     }
 
+    @Test("exportSnapshot includes every record's fields but never a photo (RUKI-037, D37)")
+    func exportSnapshotExcludesPhotos() throws {
+        let store = try makeStore()
+        let checkInSlot = makeSlot(prayer: .fajr, start: referenceDate)
+        let markSlot = makeSlot(prayer: .dhuhr, start: referenceDate.addingTimeInterval(3600))
+        try store.recordCheckIn(
+            for: checkInSlot, isLate: true, checkedInAt: referenceDate,
+            frontImageData: Data([0x1]), rearImageData: Data([0x2]),
+            expiresAt: referenceDate.addingTimeInterval(7200), caption: "Alhamdulillah"
+        )
+        try store.recordMark(for: markSlot, kind: .prayed, markedAt: referenceDate)
+        try store.recordPause(startedAt: referenceDate, endsAt: nil)
+
+        let export = try store.exportSnapshot(exportedAt: referenceDate.addingTimeInterval(10_800))
+
+        #expect(export.exportedAt == referenceDate.addingTimeInterval(10_800))
+        #expect(export.checkIns == [
+            HistoryExport.CheckIn(
+                slotID: checkInSlot.id, prayer: Prayer.fajr.rawValue, dayKey: checkInSlot.dayKey,
+                isLate: true, checkedInAt: referenceDate, caption: "Alhamdulillah"
+            ),
+        ])
+        #expect(export.marks == [HistoryExport.Mark(slotID: markSlot.id, kind: MarkSnapshot.Kind.prayed.rawValue, markedAt: referenceDate)])
+        #expect(export.pauses == [HistoryExport.Pause(startedAt: referenceDate, endsAt: nil)])
+    }
+
+    @Test("deleteAll wipes every check-in, mark, and pause (RUKI-037)")
+    func deleteAllWipesEverything() throws {
+        let store = try makeStore()
+        let slot = makeSlot(start: referenceDate)
+        try store.recordCheckIn(
+            for: slot, isLate: false, checkedInAt: referenceDate,
+            frontImageData: nil, rearImageData: nil, expiresAt: referenceDate.addingTimeInterval(3600)
+        )
+        try store.recordMark(for: slot, kind: .prayed, markedAt: referenceDate)
+        try store.recordPause(startedAt: referenceDate, endsAt: nil)
+
+        try store.deleteAll()
+
+        #expect(try store.checkInSnapshots().isEmpty)
+        #expect(try store.markSnapshots().isEmpty)
+        #expect(try store.pauseSnapshots().isEmpty)
+    }
+
     @Test("SwiftDataPersistence produces a usable in-memory container")
     func swiftDataPersistenceInMemory() throws {
         let persistence = try SwiftDataPersistence(inMemory: true)

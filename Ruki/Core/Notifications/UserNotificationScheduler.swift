@@ -37,6 +37,24 @@ final class UserNotificationScheduler: NotificationScheduling, @unchecked Sendab
         await center.pendingNotificationRequests().count
     }
 
+    /// A fixed identifier, not `PromptSpec.identifierPrefix`-based: this
+    /// isn't a real prompt, so `replacePending`'s clear-and-replace must
+    /// never touch it, and a second test prompt should just replace the
+    /// first rather than piling up.
+    private static let testPromptIdentifier = "ruki.debug.testPrompt"
+
+    func scheduleTestPrompt(secondsFromNow: TimeInterval) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Ruki test prompt")
+        content.body = String(localized: "This fired from the DEBUG tools — no prayer window is attached to it.")
+        content.sound = .default
+        content.interruptionLevel = .timeSensitive
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, secondsFromNow), repeats: false)
+        let request = UNNotificationRequest(identifier: Self.testPromptIdentifier, content: content, trigger: trigger)
+        try await center.add(request)
+    }
+
     private func request(for spec: PromptSpec, soundEnabled: Bool) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = spec.prayer.displayName

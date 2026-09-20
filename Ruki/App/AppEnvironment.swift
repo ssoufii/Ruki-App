@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UserNotifications
 
 /// The app's composition root: builds every `Core/` dependency exactly once
 /// at launch and hands the results to the views that need them. Nothing
@@ -17,6 +18,10 @@ final class AppEnvironment {
     private let persistence: any PersistenceProviding
     private let notificationScheduler: any NotificationScheduling
     private let backgroundRefreshScheduler: any BackgroundRefreshScheduling
+    /// Held here, not just assigned as the delegate, because
+    /// `UNUserNotificationCenter.delegate` is `weak` — nothing else in the
+    /// app keeps this alive otherwise (RUKI-014).
+    private let notificationCoordinator: NotificationCoordinator
 
     /// The current prayer timeline. A computed property, not stored, so a
     /// later madhab change in `userSettings` (RUKI-036 Settings) is picked
@@ -48,6 +53,24 @@ final class AppEnvironment {
         try? await backgroundRefresh.refreshAndScheduleNext(inputs: inputs)
     }
 
+    /// RUKI-037: "Delete my data on this device". Wipes on-device history,
+    /// cancels every pending prompt outright (a re-plan would just schedule
+    /// fresh ones against the reset-but-still-enabled defaults), then resets
+    /// settings — which sends the router back to onboarding.
+    func deleteAllOnDeviceData() async {
+        try? historyStore.deleteAll()
+        try? await notificationScheduler.replacePending(with: [], soundEnabled: userSettings.soundEnabled)
+        userSettings.resetToDefaults()
+    }
+
+    /// T3 DEBUG tools: fires one real local notification ~10 seconds out,
+    /// through the same `UNUserNotificationCenter` pipeline as a real
+    /// prompt, without touching the real prompt horizon. Only ever called
+    /// from Settings' `#if DEBUG`-gated section; harmless either way.
+    func scheduleDebugTestPrompt() async {
+        try? await notificationScheduler.scheduleTestPrompt(secondsFromNow: 10)
+    }
+
     init() {
         #if DEBUG
         // A tester can jump the clock (DEBUG tools, T3) instead of waiting
@@ -77,6 +100,9 @@ final class AppEnvironment {
         notificationScheduler = UserNotificationScheduler()
         notificationAuthorizer = SystemNotificationAuthorizer()
         backgroundRefreshScheduler = SystemBackgroundRefreshScheduler()
+
+        notificationCoordinator = NotificationCoordinator(router: router)
+        UNUserNotificationCenter.current().delegate = notificationCoordinator
     }
 
     /// Falls back to an in-memory store rather than crashing if the

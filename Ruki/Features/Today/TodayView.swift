@@ -3,20 +3,40 @@ import SwiftUI
 
 /// T2: the app's home screen once onboarding is done. Shows the current or
 /// next prayer with a gentle countdown, a live card for whatever's open right
-/// now, and today's five prayer rows. Pause (RUKI-034) and check-in
-/// (RUKI-019/020) are both real flows from here.
+/// now, and today's five prayer rows. Pause (RUKI-034), Settings (RUKI-036),
+/// History (RUKI-032), and check-in (RUKI-019/020) are all real flows from
+/// here.
 struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
     @State private var checkInRow: TodayViewModel.Row?
+    @State private var showingSettings = false
+    @State private var showingHistory = false
     @State private var markingRow: TodayViewModel.Row?
 
     private let cameraProvider: any CameraProviding
 
-    /// Called after a pause is recorded (RUKI-034), so notifications get
-    /// re-planned against the new pause without this view owning any
-    /// scheduling logic itself.
-    let onPauseChanged: () async -> Void
+    /// Kept only to hand to `CalendarView` (RUKI-032) when History is opened
+    /// — `viewModel` already owns its own copy for Today's own rows.
+    private let timeline: PrayerTimeline
+    private let clock: any ClockProviding
+    private let userSettings: UserSettings
+    private let historyStore: HistoryStore
+    private let notificationAuthorizer: any NotificationAuthorizing
+
+    /// Called after a pause or a schedule-affecting settings change is
+    /// recorded (RUKI-034, RUKI-036), so notifications get re-planned
+    /// without this view owning any scheduling logic itself.
+    let onScheduleAffectingChange: () async -> Void
+
+    /// RUKI-037: "Delete my data on this device", forwarded to
+    /// `AppEnvironment` — wiping SwiftData and cancelling notifications
+    /// needs the scheduler this view never otherwise touches.
+    let onDeleteAllData: () async -> Void
+
+    /// T3 DEBUG tools only, forwarded through to `SettingsViewModel` — see
+    /// its own doc comment for why this is threaded unconditionally.
+    let onDebugSendTestPrompt: () async -> Void
 
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
@@ -29,22 +49,42 @@ struct TodayView: View {
         userSettings: UserSettings,
         historyStore: HistoryStore,
         cameraProvider: any CameraProviding,
-        onPauseChanged: @escaping () async -> Void
+        notificationAuthorizer: any NotificationAuthorizing,
+        onScheduleAffectingChange: @escaping () async -> Void,
+        onDeleteAllData: @escaping () async -> Void,
+        onDebugSendTestPrompt: @escaping () async -> Void = {}
     ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
         self.cameraProvider = cameraProvider
-        self.onPauseChanged = onPauseChanged
+        self.timeline = timeline
+        self.clock = clock
+        self.userSettings = userSettings
+        self.historyStore = historyStore
+        self.notificationAuthorizer = notificationAuthorizer
+        self.onScheduleAffectingChange = onScheduleAffectingChange
+        self.onDeleteAllData = onDeleteAllData
+        self.onDebugSendTestPrompt = onDebugSendTestPrompt
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text(viewModel.headline)
-                    .font(.title2)
-                    .foregroundStyle(RukiPalette.primaryText)
-                    .accessibilityAddTraits(.updatesFrequently)
+                HStack {
+                    Text(viewModel.headline)
+                        .font(.title2)
+                        .foregroundStyle(RukiPalette.primaryText)
+                        .accessibilityAddTraits(.updatesFrequently)
+                    Spacer()
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
+                    .accessibilityLabel("Settings")
+                }
 
                 if let activeRow = viewModel.activeRow {
                     checkInCard(for: activeRow)
@@ -62,12 +102,22 @@ struct TodayView: View {
                 }
                 .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 16))
 
-                Button {
-                    showingPause = true
-                } label: {
-                    Text("Pause check-ins")
-                        .font(.subheadline)
-                        .foregroundStyle(RukiPalette.secondaryText)
+                HStack {
+                    Button {
+                        showingHistory = true
+                    } label: {
+                        Text("History")
+                            .font(.subheadline)
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
+                    Spacer()
+                    Button {
+                        showingPause = true
+                    } label: {
+                        Text("Pause check-ins")
+                            .font(.subheadline)
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
                 }
             }
             .padding()
@@ -79,12 +129,31 @@ struct TodayView: View {
             PauseDurationView { duration in
                 viewModel.pause(for: duration)
                 showingPause = false
-                Task { await onPauseChanged() }
+                Task { await onScheduleAffectingChange() }
             }
         }
         .sheet(item: $checkInRow) { row in
             CheckInFlowView(viewModel: viewModel.makeCheckInViewModel(for: row, cameraProvider: cameraProvider))
                 .onDisappear { viewModel.refresh() }
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(
+                viewModel: SettingsViewModel(
+                    userSettings: userSettings,
+                    notificationAuthorizer: notificationAuthorizer,
+                    historyStore: historyStore,
+                    clock: clock,
+                    onScheduleAffectingChange: onScheduleAffectingChange,
+                    onDeleteAllData: onDeleteAllData,
+                    onDebugSendTestPrompt: onDebugSendTestPrompt
+                )
+            )
+            .onDisappear { viewModel.refresh() }
+        }
+        .sheet(isPresented: $showingHistory) {
+            NavigationStack {
+                CalendarView(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
+            }
         }
         .sheet(item: $markingRow) { row in
             MissedPrayerMarkView(
@@ -176,6 +245,8 @@ private struct PrayerRowView: View {
         userSettings: environment.userSettings,
         historyStore: environment.historyStore,
         cameraProvider: environment.cameraProvider,
-        onPauseChanged: {}
+        notificationAuthorizer: environment.notificationAuthorizer,
+        onScheduleAffectingChange: {},
+        onDeleteAllData: {}
     )
 }

@@ -6,34 +6,36 @@ import SwiftUI
 /// all) — `AppEnvironment` selects `PlaceholderCameraProvider` there via
 /// `#if targetEnvironment(simulator)`.
 ///
-/// An `actor`, because Apple's own guidance is to configure and drive a
-/// capture session away from the main thread. The actual
-/// `AVCapturePhotoCaptureDelegate` conformance lives on the private
-/// `PhotoCaptureDelegate` below (that protocol requires `NSObjectProtocol`,
-/// which an actor can't provide) — its callbacks arrive on an arbitrary
-/// queue with no actor context, so they hop back in via `Task` to resume the
-/// continuation that's waiting, the standard Swift 6 pattern for a
-/// delegate-based Apple API. `makePreviewView()` is `nonisolated` rather
-/// than actor-isolated, since it only builds a value type — see its own doc
-/// comment.
-actor AVCameraProvider: CameraProviding {
+/// A plain class, not an `actor`: three attempts at an actor-isolated
+/// version fought the Swift 6 type checker over `nonisolated(unsafe)`
+/// session properties crossing into `CameraPreviewRepresentable`'s
+/// `@MainActor`-inferred `UIViewRepresentable` isolation, and never
+/// resolved (full diagnosis on issue #20). This is the traditional,
+/// pre-actor `AVFoundation` pattern Apple's own AVCam/AVMultiCamPiP samples
+/// use: a private serial `sessionQueue` serializes every session
+/// configuration and capture call, `@unchecked Sendable` matches this
+/// codebase's own precedent for a type holding only Apple capture-session
+/// state (`UserNotificationScheduler`), and nothing here needs to cross a
+/// *named* isolation domain, sidestepping the actor/`nonisolated(unsafe)`/
+/// `@MainActor` conflict entirely.
+final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
     enum CameraError: Error {
         case configurationFailed
         case notConfigured
         case noImageData
     }
 
-    /// `nonisolated(unsafe)`: read from `makePreviewView()`, which is itself
-    /// `nonisolated` so it can be called synchronously without `await` from
-    /// any context — including this actor's own isolated methods and
-    /// `CheckInViewModel`'s `@MainActor` code alike. Safe in practice —
-    /// `AVCaptureSession` is documented to tolerate being driven from a
-    /// session queue while a preview layer elsewhere reads it live, which is
-    /// exactly this split; `multiCamConfigured` only ever flips once, during
-    /// `startSession()`, before any preview view is requested.
-    private nonisolated(unsafe) let multiCamSession = AVCaptureMultiCamSession()
-    private nonisolated(unsafe) let singleCamSession = AVCaptureSession()
-    private nonisolated(unsafe) var multiCamConfigured = false
+    private let sessionQueue = DispatchQueue(label: "com.salimsoufi.Ruki.cameraSession")
+
+    /// Read from `makePreviewView()` without hopping onto `sessionQueue` —
+    /// safe in practice: `AVCaptureSession` is documented to tolerate being
+    /// driven from a session queue while a preview layer elsewhere reads it
+    /// live, which is exactly this split, and `multiCamConfigured` only
+    /// ever flips once, during `startSession()`, before any preview view is
+    /// requested.
+    private let multiCamSession = AVCaptureMultiCamSession()
+    private let singleCamSession = AVCaptureSession()
+    private var multiCamConfigured = false
 
     private var singleCamOutput: AVCapturePhotoOutput?
     private var multiCamFrontOutput: AVCapturePhotoOutput?
@@ -59,35 +61,37 @@ actor AVCameraProvider: CameraProviding {
     }
 
     func startSession() async throws {
-        guard !sessionStarted else { return }
+        try await performOnSessionQueue {
+            guard !self.sessionStarted else { return }
 
-        if AVCaptureMultiCamSession.isMultiCamSupported, configureMultiCamSession() {
-            multiCamConfigured = true
-            multiCamSession.startRunning()
-        } else {
-            multiCamConfigured = false
-            try configureSingleCamSession(position: .front)
-            singleCamSession.startRunning()
+            if AVCaptureMultiCamSession.isMultiCamSupported, self.configureMultiCamSession() {
+                self.multiCamConfigured = true
+                self.multiCamSession.startRunning()
+            } else {
+                self.multiCamConfigured = false
+                try self.configureSingleCamSession(position: .front)
+                self.singleCamSession.startRunning()
+            }
+            self.sessionStarted = true
         }
-        sessionStarted = true
     }
 
     func stopSession() async {
-        if multiCamSession.isRunning { multiCamSession.stopRunning() }
-        if singleCamSession.isRunning { singleCamSession.stopRunning() }
-        sessionStarted = false
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            sessionQueue.async {
+                if self.multiCamSession.isRunning { self.multiCamSession.stopRunning() }
+                if self.singleCamSession.isRunning { self.singleCamSession.stopRunning() }
+                self.sessionStarted = false
+                continuation.resume()
+            }
+        }
     }
 
-    /// Plain `nonisolated`, not `@MainActor`: this only builds a value type
-    /// (`CameraPreviewRepresentable` wraps a session reference but doesn't
-    /// touch UIKit itself) — the actual `AVCaptureVideoPreviewLayer`/`UIView`
-    /// only comes into being later, in `makeUIView(context:)`, which SwiftUI
-    /// already guarantees runs on the main thread. Being `@MainActor` here
-    /// instead would make `multiCamSession`/`singleCamSession`/
-    /// `multiCamConfigured` cross from this actor's isolation into a
-    /// *different* global actor, which Swift 6 rejects even with
-    /// `nonisolated(unsafe)` (that attribute only clears plain, non-actor
-    /// contexts).
+    /// Reads `multiCamConfigured`/the session references directly, off
+    /// `sessionQueue` — see the type's own doc comment for why that's safe
+    /// here. Building `CameraPreviewRepresentable` is just storing a
+    /// reference, not touching UIKit (`makeUIView` does that later, on the
+    /// main thread, as SwiftUI already guarantees).
     nonisolated func makePreviewView() -> AnyView {
         let session: AVCaptureSession = multiCamConfigured ? multiCamSession : singleCamSession
         return AnyView(CameraPreviewRepresentable(session: session))
@@ -105,12 +109,6 @@ actor AVCameraProvider: CameraProviding {
                 : try await captureSingleCam(position: .back)
             return CapturedPhoto(frontImageData: nil, rearImageData: rear)
         case .simultaneousDualCamera:
-            // Selecting by a `Sendable` enum rather than passing the
-            // `AVCapturePhotoOutput?` itself: `async let` starts a child
-            // task, and hand-off across that boundary needs a Sendable
-            // value — the actual (non-Sendable) output is read from `self`
-            // inside `capture(_:)`, on this actor, not crossed into the
-            // child task from here.
             async let front = capture(.multiCamFront)
             async let rear = capture(.multiCamRear)
             return try await CapturedPhoto(frontImageData: front, rearImageData: rear)
@@ -129,6 +127,8 @@ actor AVCameraProvider: CameraProviding {
     /// Any failure along the way returns `false` rather than throwing, so
     /// `startSession()` falls back to the single-camera path automatically
     /// (RUKI-021) instead of the check-in flow failing outright.
+    ///
+    /// Only ever called from a block already running on `sessionQueue`.
     private func configureMultiCamSession() -> Bool {
         multiCamSession.beginConfiguration()
         defer { multiCamSession.commitConfiguration() }
@@ -180,6 +180,7 @@ actor AVCameraProvider: CameraProviding {
     /// One `AVCaptureSession` whose input is swapped between shots — used
     /// both for Space Only (rear only, never swapped) and the sequential
     /// fallback (front, then rear, on hardware without multi-cam, RUKI-021).
+    /// Only ever called from a block already running on `sessionQueue`.
     private func configureSingleCamSession(position: AVCaptureDevice.Position) throws {
         singleCamSession.beginConfiguration()
         let output = AVCapturePhotoOutput()
@@ -193,6 +194,7 @@ actor AVCameraProvider: CameraProviding {
         try switchSingleCamInput(to: position)
     }
 
+    /// Only ever called from a block already running on `sessionQueue`.
     private func switchSingleCamInput(to position: AVCaptureDevice.Position) throws {
         singleCamSession.beginConfiguration()
         defer { singleCamSession.commitConfiguration() }
@@ -209,7 +211,7 @@ actor AVCameraProvider: CameraProviding {
     }
 
     private func captureSingleCam(position: AVCaptureDevice.Position) async throws -> Data {
-        try switchSingleCamInput(to: position)
+        try await performOnSessionQueue { try self.switchSingleCamInput(to: position) }
         return try await capture(.singleCam)
     }
 
@@ -222,26 +224,48 @@ actor AVCameraProvider: CameraProviding {
     }
 
     private func capture(_ selector: PhotoOutputSelector) async throws -> Data {
-        let output: AVCapturePhotoOutput?
-        switch selector {
-        case .multiCamFront: output = multiCamFrontOutput
-        case .multiCamRear: output = multiCamRearOutput
-        case .singleCam: output = singleCamOutput
-        }
-        guard let output else { throw CameraError.notConfigured }
         let id = UUID()
         return try await withCheckedThrowingContinuation { continuation in
-            let delegate = PhotoCaptureDelegate { [weak self] result in
-                Task { await self?.finishCapture(id: id, result: result, continuation: continuation) }
+            sessionQueue.async {
+                let output: AVCapturePhotoOutput?
+                switch selector {
+                case .multiCamFront: output = self.multiCamFrontOutput
+                case .multiCamRear: output = self.multiCamRearOutput
+                case .singleCam: output = self.singleCamOutput
+                }
+                guard let output else {
+                    continuation.resume(throwing: CameraError.notConfigured)
+                    return
+                }
+                let delegate = PhotoCaptureDelegate { [weak self] result in
+                    guard let self else { return }
+                    self.sessionQueue.async {
+                        self.activeDelegates.removeValue(forKey: id)
+                        continuation.resume(with: result)
+                    }
+                }
+                self.activeDelegates[id] = delegate
+                output.capturePhoto(with: AVCapturePhotoSettings(), delegate: delegate)
             }
-            activeDelegates[id] = delegate
-            output.capturePhoto(with: AVCapturePhotoSettings(), delegate: delegate)
         }
     }
 
-    private func finishCapture(id: UUID, result: Result<Data, Error>, continuation: CheckedContinuation<Data, Error>) {
-        activeDelegates.removeValue(forKey: id)
-        continuation.resume(with: result)
+    /// Runs `work` on `sessionQueue`, bridging back to `async throws`. Every
+    /// method above that configures or starts the session goes through this
+    /// (or `capture(_:)`, which needs its own continuation shape because the
+    /// delegate callback resumes it asynchronously) so session state is only
+    /// ever touched from this one queue.
+    private func performOnSessionQueue(_ work: @escaping () throws -> Void) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async {
+                do {
+                    try work()
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 }
 

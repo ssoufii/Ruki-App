@@ -255,7 +255,7 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
     /// (or `capture(_:)`, which needs its own continuation shape because the
     /// delegate callback resumes it asynchronously) so session state is only
     /// ever touched from this one queue.
-    private func performOnSessionQueue(_ work: @escaping () throws -> Void) async throws {
+    private func performOnSessionQueue(_ work: @escaping @Sendable () throws -> Void) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             sessionQueue.async {
                 do {

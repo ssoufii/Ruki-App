@@ -42,6 +42,16 @@ final class AppEnvironment {
         return BackgroundRefresh(coordinator: coordinator, scheduler: backgroundRefreshScheduler)
     }
 
+    /// Re-plans the 12-day notification horizon (RUKI-015) against whatever's
+    /// currently enabled. `RukiApp` calls this on launch, foreground, and
+    /// background wake; a settings or pause change (RUKI-036, RUKI-034)
+    /// calls it the same way, right after writing the change that affects
+    /// scheduling.
+    func refreshBackgroundSchedule() async {
+        let inputs = userSettings.promptInputs
+        try? await backgroundRefresh.refreshAndScheduleNext(inputs: inputs)
+    }
+
     init() {
         #if DEBUG
         // A tester can jump the clock (DEBUG tools, T3) instead of waiting

@@ -118,6 +118,19 @@ final class TodayViewModel {
         }
     }
 
+    /// RUKI-034: pauses starting now, for the chosen duration. The caller is
+    /// responsible for re-planning notifications afterward (`AppEnvironment
+    /// .refreshBackgroundSchedule`) — this type only owns `HistoryStore`.
+    func pause(for duration: PauseDuration) {
+        let now = clock.now()
+        do {
+            try historyStore.recordPause(startedAt: now, endsAt: duration.endsAt(from: now))
+            refresh()
+        } catch {
+            loadError = error
+        }
+    }
+
     private static func status(
         for slot: PrayerSlot,
         now: Date,

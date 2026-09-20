@@ -6,12 +6,12 @@ Read alongside `CLAUDE.md` at the start of every session. Update at the end of e
 
 ## Current state
 
-**Phase:** M0 (foundations) complete. M1 (solo loop) not started.
-**Last session:** 2026-09-19 (session 4) — verified M0, fixed the defects that surfaced, resolved the open decisions the user delegated, created `docs/` and `.claude/commands/`. Session 3 (the M0 build) never updated this file; its entry below is reconstructed from the commit.
-**Next action:** Start M1 (solo loop). No decision blocks it. MVP backlog (65 stories, Epics 01–13, milestones M0–M3) is in GitHub Issues. The real prayer-time engine + OQ-8 (Epic 13) is the *first item of M2* — no friend can be added on frozen times (D27).
+**Phase:** M0 (foundations) complete. M1 (solo loop) in progress, built by the unattended cloud routine (D39).
+**Last session:** 2026-09-20 (session 6, scheduled M1 routine) — merged 5 story branches into `m1/integration` (9 of 33 M1 stories: #33, #28, #29, #30, #31, #35, #18, #13, #16), all green on CI.
+**Next action:** Continue the M1 story order in `docs/M1-PLAYBOOK.md` §4, starting at #17 (`UserSettings` + per-prayer notification enable/disable). No decision blocks it. The real prayer-time engine + OQ-8 (Epic 13) is still the *first item of M2* — no friend can be added on frozen times (D27).
 
-**What exists:** Xcode project (file-system synchronized groups, iOS 17.0, Swift 6, default actor isolation `nonisolated`); `ClockProviding`/`SystemClock`; protocol boundaries + fakes for prayer times, notifications, persistence, camera; `FixedPrayerTimeProvider` (D27); 15 test executions / 13 test functions (`RukiTests`); CI on GitHub Actions (passing on `913ad8d`); `docs/QA.md`, `docs/ARCHITECTURE.md`, `.claude/commands/`.
-**What does not exist:** any M1 feature, any UI beyond the Xcode template `ContentView`, any backend.
+**What exists:** Xcode project (file-system synchronized groups, iOS 17.0, Swift 6, default actor isolation `nonisolated`); `ClockProviding`/`SystemClock`; `FixedPrayerTimeProvider` (D27); `PrayerTimeline`/`PrayerSlot`/`CheckInPhase`/`TorontoCalendar`; on-device SwiftData history (`CheckInRecord`/`PrayerMark`/`PauseRecord`, `HistoryStore`, `RukiModelContainer`, `SwiftDataPersistence`) with per-slot streak/resolver logic (`SlotResolver`, `StreakCalculator`, `StreakSummaryPresenter`) and photo purge at `expiresAt` (D37); a `FriendFacingCheckIn` payload type with leak tests (RDP-2/3, D8); Time-Sensitive local notification scheduling (`PromptPlanner`/`PromptScheduler`/`NotificationScheduling`/`NotificationAuthorizing`, real `UserNotificationScheduler`/`SystemNotificationAuthorizer`) capped at 64 pending (RUKI-016); protocol boundaries + fakes for every one of the above; CI on GitHub Actions, green on `m1/integration`. `docs/QA.md`, `docs/ARCHITECTURE.md`, `docs/M1-PLAYBOOK.md`, `docs/M1-PROGRESS.md`, `.claude/commands/`.
+**What does not exist:** any UI beyond the Xcode template `ContentView`; any backend; anything invoking the notification scheduler on a real trigger (app launch/background refresh — that's #15/T1/T2); camera capture; per-prayer settings (#17); the 12-day scheduling horizon (#15); Sign in with Apple (#8, deferred to M2, D35).
 
 ---
 
@@ -164,6 +164,29 @@ User asked for a status, then to run the tests and update this file, then delega
 - **D30 (Isha to Fajr) is a product judgment about a fiqh-adjacent boundary.** I'm confident it avoids refusing a valid prayer; I'm not qualified to say it's the right window, and the wording in the app must never imply it is. Needs the scholar review (OQ-1).
 - **D31's cost is real.** Combining users get a five-prompt app in v1. I judged a labelled deferral better than a half-built profile, but it is a trade against RDP-6, not a free choice.
 - SourceKit showed a "No such module 'Testing'" diagnostic on the new test file even though the build passes; I treated it as indexing noise and didn't investigate.
+
+### 2026-09-20 — Session 6 (scheduled M1 routine, run 1)
+Ran unattended per `docs/M1-PLAYBOOK.md`/D39. `gh` CLI is not installed in this sandbox at all (not just unauthenticated) — used the GitHub MCP server tools instead (this session's environment says to prefer them over `gh`/raw API access generally), verified they actually worked before relying on them, and logged the substitution in `docs/M1-PROGRESS.md` Findings per playbook §3 rather than silently swapping tools or treating it as the "no CI visibility" stop condition.
+
+**Built, tested (CI, macOS-15/Xcode 16.4), and merged to `m1/integration`** — 5 branches, 9 stories:
+- `m1/story-033-history-swiftdata` (#33): on-device SwiftData history.
+- `m1/story-028-streak-tests` (#28, #29, #30, #31): streak/resolver unit tests + `StreakSummaryPresenter`.
+- `m1/story-035-friend-payload` (#35): `FriendFacingCheckIn` + leak tests.
+- `m1/story-018-fajr-window-tests` (#18): `PrayerTimeline` tests proving Fajr is never Late.
+- `m1/story-013-time-sensitive-notification` (#13, #16): notification scheduling capped at 64.
+
+Full details (branch names, CI run URLs, per-story notes) are in `docs/M1-PROGRESS.md`, not duplicated here.
+
+**Two CI failures fixed, both Swift 6 strict-concurrency, worth remembering:**
+- A `static let` of a non-`Sendable` type (SwiftData's `Schema`) doesn't compile under strict concurrency — made it a computed `static var`.
+- A class storing `UNUserNotificationCenter` (not an audited-`Sendable` Apple type) as a stored property needs `@unchecked Sendable` with a justifying comment (both wrapper types hold only the shared `.current()` singleton and nothing else).
+- Also fixed one unrelated test-file bug: `dict?.keys ?? []` doesn't type-check (`Dictionary.Keys` isn't `ExpressibleByArrayLiteral`) — coalesce the dictionary itself instead.
+
+**NOT tested:** anything on a physical device or Simulator UI — this run was Core/ logic only (persistence, streak/resolver, a payload shape, Fajr-window logic, notification *scheduling* logic, not *delivery*). `UserNotificationScheduler`'s real `UNUserNotificationCenter` calls, `.timeSensitive` actually piercing Focus/DND, and permission-prompt behavior are exercised only through the protocol/fake in tests.
+
+**Uncertain about:** whether `@unchecked Sendable` is the idiomatic long-term answer for the two notification wrapper types vs. actor-isolating them — chose it because both hold no other mutable state, but didn't find an authoritative Apple recommendation either way.
+
+Stopped at 5 branches (playbook allows up to 6): #17 (`UserSettings` + per-prayer enable/disable) is a larger unit than the remaining run had room to implement, test, and drive through a full CI cycle including a possible fix-and-retry, and starting it without finishing would risk leaving `m1/integration` in a worse state than starting it.
 
 ### 2026-09-20 — Session 5 (M1 kickoff; handed to a cloud routine)
 - Read all 30 M1 issues; found four that conflict with earlier decisions (#8, #9, #36, #37) and resolved them as D33–D35. Logged D36–D39.

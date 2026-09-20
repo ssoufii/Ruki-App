@@ -106,6 +106,18 @@ final class TodayViewModel {
         headline = Self.headlineText(now: now, timeline: timeline, userSettings: userSettings)
     }
 
+    /// RUKI-026: privately marks a closed, unrecorded window as prayed or
+    /// not. On-device only (RDP-2) — `HistoryStore.recordMark` never
+    /// produces a network event, whichever way the user answers.
+    func mark(_ row: Row, as kind: MarkSnapshot.Kind) {
+        do {
+            try historyStore.recordMark(for: row.slot, kind: kind, markedAt: clock.now())
+            refresh()
+        } catch {
+            loadError = error
+        }
+    }
+
     private static func status(
         for slot: PrayerSlot,
         now: Date,

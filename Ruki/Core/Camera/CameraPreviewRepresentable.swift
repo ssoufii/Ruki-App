@@ -8,6 +8,18 @@ import UIKit
 struct CameraPreviewRepresentable: UIViewRepresentable {
     let session: AVCaptureSession
 
+    /// Explicitly `nonisolated`: `UIViewRepresentable` (via `View`) infers
+    /// `@MainActor` isolation for this type's members, including a
+    /// synthesized memberwise init — but building this struct is just
+    /// storing a reference, not touching UIKit (`makeUIView` does that, and
+    /// stays implicitly `@MainActor` as normal). Without this override,
+    /// `AVCameraProvider.makePreviewView()` — `nonisolated` on purpose, so it
+    /// can be called synchronously from its own actor's isolation — couldn't
+    /// construct this type at all.
+    nonisolated init(session: AVCaptureSession) {
+        self.session = session
+    }
+
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.videoPreviewLayer.session = session

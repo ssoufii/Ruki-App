@@ -97,6 +97,17 @@ struct SlotResolverTests {
         #expect(resolver.outcome(for: s, now: referenceDate.addingTimeInterval(7200)) == .paused)
     }
 
+    @Test("A resumed pause frees up the still-open window it covered, rather than locking it into paused forever (RDP-3)")
+    func resumedPauseFreesUpAStillOpenWindow() {
+        let s = slot(hoursFromReference: 0, durationMinutes: 60)
+        // Paused, then resumed 10 minutes later -- both while the window is
+        // still open (it doesn't close until referenceDate + 60 min).
+        let pause = PauseSnapshot(startedAt: referenceDate.addingTimeInterval(300), endsAt: referenceDate.addingTimeInterval(900))
+        let resolver = SlotResolver(checkIns: [], marks: [], pauses: [pause], trackingStart: referenceDate.addingTimeInterval(-3600))
+
+        #expect(resolver.outcome(for: s, now: referenceDate.addingTimeInterval(900)) == .pending)
+    }
+
     @Test("A pause that ends before the window starts does not protect it")
     func pauseEndingBeforeWindowDoesNotOverlap() {
         let s = slot(hoursFromReference: 2, durationMinutes: 60)

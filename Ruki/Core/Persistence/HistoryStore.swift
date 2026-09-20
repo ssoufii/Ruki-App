@@ -74,6 +74,23 @@ final class HistoryStore {
         try modelContext.save()
     }
 
+    /// RDP-3: "you can turn it back on anytime" — ends whatever pause is
+    /// active right now by setting its `endsAt` to `now`, rather than
+    /// deleting the record (the pause still applies to the slots it already
+    /// covered; only its future reach changes). A no-op if nothing is
+    /// active. Filtered in Swift, not a `#Predicate`, because comparing
+    /// against an optional `Date` inside a predicate isn't expressible here.
+    func resumeActivePause(now: Date) throws {
+        let records = try modelContext.fetch(FetchDescriptor<PauseRecord>())
+        var didResume = false
+        for record in records where record.startedAt <= now && now < (record.endsAt ?? .distantFuture) {
+            record.endsAt = now
+            didResume = true
+        }
+        guard didResume else { return }
+        try modelContext.save()
+    }
+
     // MARK: Purge
 
     /// Drops photo data for every check-in whose window has expired (D37).

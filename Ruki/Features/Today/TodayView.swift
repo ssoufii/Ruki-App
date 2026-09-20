@@ -112,9 +112,17 @@ struct TodayView: View {
                     }
                     Spacer()
                     Button {
-                        showingPause = true
+                        if viewModel.isPaused {
+                            // RDP-3: resuming is one tap, no confirmation —
+                            // pausing itself needs no reason, so turning it
+                            // back on shouldn't need one either.
+                            viewModel.resume()
+                            Task { await onScheduleAffectingChange() }
+                        } else {
+                            showingPause = true
+                        }
                     } label: {
-                        Text("Pause check-ins")
+                        Text(viewModel.isPaused ? "Resume check-ins" : "Pause check-ins")
                             .font(.subheadline)
                             .foregroundStyle(RukiPalette.secondaryText)
                     }

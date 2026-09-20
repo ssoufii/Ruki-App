@@ -64,6 +64,21 @@ jobs:
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee device.log
           ./scripts/check-no-warnings.sh device.log
 
+      # L6 (docs/M1-PLAYBOOK.md SS5): a first attempt at wiring RukiUITests
+      # into CI, now that it has real content (onboarding -> Today ->
+      # check-in -> history, plus an accessibility audit). Separate step
+      # from the unit-test build above so a UI-test-specific failure is
+      # easy to attribute; if this turns out unreliable on CI it comes back
+      # out per D29 rather than staying as permanent noise.
+      - name: UI smoke tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Ruki.xcodeproj \
+            -scheme Ruki \
+            -destination "platform=iOS Simulator,name=${{ steps.destination.outputs.device }}" \
+            -only-testing:RukiUITests 2>&1 | tee ui-test.log
+
       - name: Release build, no warnings
         run: |
           set -o pipefail

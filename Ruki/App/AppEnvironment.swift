@@ -49,6 +49,14 @@ final class AppEnvironment {
     /// calls it the same way, right after writing the change that affects
     /// scheduling.
     func refreshBackgroundSchedule() async {
+        // D37: "a purge runs on launch/refresh" — this is the one call site
+        // launch, foreground, and background wake all already share, so it's
+        // also where expired photo data actually gets dropped. Previously
+        // declared but never called anywhere (RUKI-037's purge existed only
+        // as dead code); fixed here rather than leaving photos on-device
+        // past their documented expiry (RDP-5).
+        try? historyStore.purgeExpiredPhotos(now: clock.now())
+
         let inputs = userSettings.promptInputs
         try? await backgroundRefresh.refreshAndScheduleNext(inputs: inputs)
     }

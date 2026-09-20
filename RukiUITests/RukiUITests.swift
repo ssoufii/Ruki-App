@@ -19,8 +19,13 @@ import XCTest
 final class RukiUITests: XCTestCase {
     private var app: XCUIApplication!
 
+    /// Called at the top of every test rather than from `setUpWithError()`:
+    /// XCTestCase's setUp methods are nonisolated, so Xcode 26 rejects both an
+    /// `@MainActor` override and capturing `self` into a main-actor closure, while
+    /// `XCUIApplication` and `continueAfterFailure` are main-actor. Each test is
+    /// already `@MainActor`, so launching from here needs no isolation workaround.
     @MainActor
-    override func setUpWithError() throws {
+    private func launchApp() {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launch()
@@ -28,6 +33,7 @@ final class RukiUITests: XCTestCase {
 
     @MainActor
     func testOnboardingThroughCheckInAndHistory() throws {
+        launchApp()
         completeOnboarding()
         jumpDebugClock(to: "Dhuhr just began")
         checkIn(prayer: "Dhuhr")
@@ -122,6 +128,7 @@ final class RukiUITests: XCTestCase {
     /// masking whether the flow itself still works.
     @MainActor
     func testAccessibilityAuditOnOnboardingAndToday() throws {
+        launchApp()
         try app.performAccessibilityAudit()
         completeOnboarding()
         try app.performAccessibilityAudit()

@@ -19,8 +19,13 @@ import XCTest
 final class RukiUITests: XCTestCase {
     private var app: XCUIApplication!
 
+    /// `async`, not the plain synchronous `setUpWithError()` override: a
+    /// synchronous override can't add `@MainActor` beyond the nonisolated
+    /// base declaration (a compile error, not just a warning), but an async
+    /// one can, since callers already hop through `await` either way --
+    /// and `XCUIApplication.init()`/`launch()` are `@MainActor`-isolated.
     @MainActor
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launch()

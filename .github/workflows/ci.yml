@@ -17,6 +17,15 @@ jobs:
       - name: No direct Date() calls outside ClockProviding
         run: ./scripts/check-no-date.sh
 
+      # The runner's default is Xcode 16.4 (Swift 6.1); development happens on Xcode 26.3
+      # (Swift 6.2). The two disagree about actor isolation, so code that built locally
+      # was rejected here and every M1 "fix" chased the wrong compiler. Pin CI to the
+      # toolchain the code is actually written and run against.
+      - name: Select Xcode 26.3 (matches local development)
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+
       - name: Resolve a Simulator destination
         id: destination
         run: |

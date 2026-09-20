@@ -44,8 +44,7 @@ struct SettingsViewModelTests {
         viewModel.madhab = .hanafi
 
         #expect(userSettings.madhab == .hanafi)
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 1)
+        #expect(await waitUntil { await recorder.count == 1 })
     }
 
     @Test("Changing the check-in window writes through without triggering a schedule refresh")
@@ -57,8 +56,12 @@ struct SettingsViewModelTests {
         viewModel.checkInWindowMinutes = 10
 
         #expect(userSettings.checkInWindowMinutes == 10)
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 0)
+        // Barrier: a change that DOES refresh. Once its refresh has landed, any
+        // refresh wrongly triggered by the change above would already be counted.
+        viewModel.madhab = .hanafi
+        #expect(await waitUntil { await recorder.count >= 1 })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await recorder.count == 1, "only the barrier's refresh should have run")
     }
 
     @Test("Disabling a prayer removes it from enabledPrayers and triggers a refresh")
@@ -71,8 +74,7 @@ struct SettingsViewModelTests {
 
         #expect(viewModel.isPrayerEnabled(.fajr) == false)
         #expect(userSettings.enabledPrayers.contains(.fajr) == false)
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 1)
+        #expect(await waitUntil { await recorder.count == 1 })
     }
 
     @Test("Disabling every prayer is refused -- at least one must stay enabled")
@@ -97,8 +99,12 @@ struct SettingsViewModelTests {
         viewModel.spaceOnlyDefault = true
 
         #expect(userSettings.spaceOnlyDefault == true)
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 0)
+        // Barrier: a change that DOES refresh. Once its refresh has landed, any
+        // refresh wrongly triggered by the change above would already be counted.
+        viewModel.madhab = .hanafi
+        #expect(await waitUntil { await recorder.count >= 1 })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await recorder.count == 1, "only the barrier's refresh should have run")
     }
 
     @Test("refresh() reads the current notification authorization status")
@@ -140,8 +146,7 @@ struct SettingsViewModelTests {
         let pauses = try historyStore.pauseSnapshots()
         #expect(pauses.count == 1)
         #expect(pauses.first?.endsAt == referenceDate.addingTimeInterval(3 * 24 * 60 * 60))
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 1)
+        #expect(await waitUntil { await recorder.count == 1 })
     }
 
     @Test("refresh() writes a JSON export file with no photo fields anywhere in it (RUKI-037, D37)")
@@ -173,8 +178,7 @@ struct SettingsViewModelTests {
 
         viewModel.deleteAllData()
 
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 1)
+        #expect(await waitUntil { await recorder.count == 1 })
     }
 
     #if DEBUG
@@ -220,8 +224,7 @@ struct SettingsViewModelTests {
 
         viewModel.debugSendTestPrompt()
 
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(await recorder.count == 1)
+        #expect(await waitUntil { await recorder.count == 1 })
     }
     #endif
 }

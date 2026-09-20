@@ -89,10 +89,10 @@ final class AVCameraProvider: NSObject, CameraProviding, @unchecked Sendable {
 
     /// Reads `multiCamConfigured`/the session references directly, off
     /// `sessionQueue` — see the type's own doc comment for why that's safe
-    /// here. Building `CameraPreviewRepresentable` is just storing a
-    /// reference, not touching UIKit (`makeUIView` does that later, on the
-    /// main thread, as SwiftUI already guarantees).
-    nonisolated func makePreviewView() -> AnyView {
+    /// here. `@MainActor` (see the protocol requirement's doc comment for
+    /// why): this method's only caller is already on the main actor, so
+    /// there's no isolation to cross.
+    @MainActor func makePreviewView() -> AnyView {
         let session: AVCaptureSession = multiCamConfigured ? multiCamSession : singleCamSession
         return AnyView(CameraPreviewRepresentable(session: session))
     }

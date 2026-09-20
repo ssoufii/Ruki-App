@@ -40,13 +40,20 @@ protocol CameraProviding: Sendable {
     func stopSession() async
 
     /// A live view of whatever the session currently sees, for the
-    /// `.capturing` step. Must only be called after `startSession()`. Plain
-    /// `nonisolated`, not `@MainActor`: it only builds a value type (the
-    /// `UIViewRepresentable` doesn't touch UIKit until SwiftUI calls
-    /// `makeUIView` on the main thread itself), and conformers that hold
-    /// their session behind actor isolation would otherwise have to cross a
-    /// *different* global actor to build it.
-    nonisolated func makePreviewView() -> AnyView
+    /// `.capturing` step. Must only be called after `startSession()`.
+    /// `@MainActor`, not `nonisolated`: its only real caller,
+    /// `CheckInViewModel.previewView`, is itself `@MainActor` (SwiftUI never
+    /// builds a view off the main actor), and `CameraPreviewRepresentable`
+    /// storing a plain `AVCaptureSession` property needs its whole
+    /// `UIViewRepresentable` conformance — including its init — isolated
+    /// the ordinary way. An earlier `nonisolated` version needed
+    /// `nonisolated(unsafe)` on that stored property to compile, which
+    /// Swift 6 (Xcode 16.4) still rejected at the property's assignment
+    /// in `init` (`main actor-isolated property 'session' can not be
+    /// mutated from a nonisolated context`) even with the attribute
+    /// present — going through the main actor like every other SwiftUI
+    /// view removes the need for that escape hatch entirely.
+    @MainActor func makePreviewView() -> AnyView
 
     func capturePhoto(mode: CaptureMode) async throws -> CapturedPhoto
 }

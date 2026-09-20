@@ -140,6 +140,7 @@ struct CheckInFlowView: View {
 
 #Preview {
     let environment = AppEnvironment()
+    // Force unwrap is safe: every day has five prayer slots.
     let slot = environment.timeline.slots(onDayOf: environment.clock.now()).first!
     return CheckInFlowView(
         viewModel: CheckInViewModel(

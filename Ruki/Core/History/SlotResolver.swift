@@ -25,7 +25,18 @@ struct SlotResolver: Sendable {
             return mark.kind == .prayed ? .markedPrayed : .missed
         }
         if slot.window.start < trackingStart { return .notTracked }
-        if pauses.contains(where: { $0.overlaps(slot.window) }) { return .paused }
+        if pauses.contains(where: { $0.overlaps(slot.window) }) {
+            // Once the window has closed, an overlap is permanent (D38): the
+            // whole point is that a pause ending mid-window must not let it
+            // lapse into `.missed`. But while the window is still open, only
+            // a *currently active* pause should read as `.paused` -- resuming
+            // (RDP-3) must free up the window it was invoked during, not lock
+            // it into `.paused` forever just because some earlier pause once
+            // touched it.
+            if now >= slot.window.end || pauses.contains(where: { $0.isActive(at: now) }) {
+                return .paused
+            }
+        }
         return now < slot.window.end ? .pending : .missed
     }
 }

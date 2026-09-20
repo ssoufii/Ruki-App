@@ -131,6 +131,19 @@ final class SettingsViewModel {
         Task { await onScheduleAffectingChange() }
     }
 
+    /// RDP-3: "you can turn it back on anytime" — same one-tap, no-confirmation
+    /// resume as `TodayViewModel.resume()`, exposed here too since Settings is
+    /// the PRD's other of the two pause entry points (§7.8).
+    func resume() {
+        do {
+            try historyStore.resumeActivePause(now: clock.now())
+            isPaused = false
+        } catch {
+            loadError = error
+        }
+        Task { await onScheduleAffectingChange() }
+    }
+
     func isPrayerEnabled(_ prayer: Prayer) -> Bool {
         userSettings.enabledPrayers.contains(prayer)
     }

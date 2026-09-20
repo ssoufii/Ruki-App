@@ -223,6 +223,35 @@ struct TodayViewModelTests {
         #expect(record.slotID == fajrRow.slot.id)
     }
 
+    @Test("isPaused reflects whether a pause covers now, and resume() ends it (RDP-3)")
+    func resumeEndsAnActivePause() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T18:00:00Z")!
+        let (viewModel, historyStore, _) = try makeViewModel(now: now)
+        viewModel.pause(for: .untilResumed)
+        #expect(viewModel.isPaused == true)
+
+        viewModel.resume()
+
+        #expect(viewModel.isPaused == false)
+        let pauses = try historyStore.pauseSnapshots()
+        #expect(pauses.first?.endsAt == now)
+        let dhuhrRow = try #require(viewModel.rows.first { $0.slot.prayer == .dhuhr })
+        #expect(dhuhrRow.status != .paused)
+    }
+
+    @Test("resume() is a no-op when nothing is paused")
+    func resumeWithNoActivePauseIsANoOp() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T18:00:00Z")!
+        let (viewModel, historyStore, _) = try makeViewModel(now: now)
+        viewModel.refresh()
+        #expect(viewModel.isPaused == false)
+
+        viewModel.resume()
+
+        #expect(viewModel.isPaused == false)
+        #expect(try historyStore.pauseSnapshots().isEmpty)
+    }
+
     @Test("A fixed-length pause records the right end date")
     func fixedLengthPauseRecordsEndDate() throws {
         let now = ISO8601DateFormatter().date(from: "2026-09-19T18:00:00Z")!

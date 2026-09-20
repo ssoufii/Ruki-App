@@ -57,11 +57,15 @@ struct SettingsView: View {
 
             Section {
                 Button {
-                    showingPause = true
+                    if viewModel.isPaused {
+                        // RDP-3: resuming is one tap, no confirmation.
+                        viewModel.resume()
+                    } else {
+                        showingPause = true
+                    }
                 } label: {
-                    LabeledContent("Check-ins", value: viewModel.isPaused ? "Paused" : "Active")
+                    LabeledContent("Check-ins", value: viewModel.isPaused ? "Paused — tap to resume" : "Active")
                 }
-                .disabled(viewModel.isPaused)
             }
 
             Section {

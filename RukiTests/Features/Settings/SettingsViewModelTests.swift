@@ -149,6 +149,22 @@ struct SettingsViewModelTests {
         #expect(await waitUntil { await recorder.count == 1 })
     }
 
+    @Test("Resuming from Settings ends the active pause and triggers a schedule refresh (RDP-3)")
+    func resumingEndsPauseAndRefreshes() async throws {
+        let recorder = RefreshRecorder()
+        let (viewModel, historyStore) = try makeViewModel(onScheduleAffectingChange: { await recorder.record() })
+        try historyStore.recordPause(startedAt: referenceDate.addingTimeInterval(-3600), endsAt: nil)
+        await viewModel.refresh()
+        #expect(viewModel.isPaused == true)
+
+        viewModel.resume()
+
+        #expect(viewModel.isPaused == false)
+        let pauses = try historyStore.pauseSnapshots()
+        #expect(pauses.first?.endsAt == referenceDate)
+        #expect(await waitUntil { await recorder.count == 1 })
+    }
+
     @Test("refresh() writes a JSON export file with no photo fields anywhere in it (RUKI-037, D37)")
     func refreshWritesExportFileWithoutPhotos() async throws {
         let (viewModel, historyStore) = try makeViewModel()

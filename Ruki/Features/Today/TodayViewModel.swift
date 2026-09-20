@@ -70,6 +70,9 @@ final class TodayViewModel {
     private(set) var rows: [Row] = []
     private(set) var headline: String = ""
     private(set) var activeRow: Row?
+    /// Whether a pause covers `clock.now()` right now (RDP-3). Drives
+    /// whether the bottom bar's pause button offers to pause or to resume.
+    private(set) var isPaused = false
     /// Surfaced rather than swallowed — a fetch failure means today's rows
     /// stay at their last-known state instead of silently going blank.
     private(set) var loadError: (any Error)?
@@ -88,15 +91,17 @@ final class TodayViewModel {
         let now = clock.now()
 
         do {
+            let pauses = try historyStore.pauseSnapshots()
             let resolver = SlotResolver(
                 checkIns: try historyStore.checkInSnapshots(),
                 marks: try historyStore.markSnapshots(),
-                pauses: try historyStore.pauseSnapshots(),
+                pauses: pauses,
                 trackingStart: userSettings.onboardingCompletedAt ?? now
             )
             rows = timeline.slots(onDayOf: now).map { slot in
                 Row(slot: slot, status: Self.status(for: slot, now: now, resolver: resolver, timeline: timeline, userSettings: userSettings))
             }
+            isPaused = pauses.contains { $0.isActive(at: now) }
             loadError = nil
         } catch {
             loadError = error
@@ -132,6 +137,19 @@ final class TodayViewModel {
             clock: clock,
             historyStore: historyStore
         )
+    }
+
+    /// RDP-3: "you can turn it back on anytime" — ends whatever pause is
+    /// active right now, immediately, with no confirmation step, matching
+    /// pause's own no-friction ethos. The caller re-plans notifications the
+    /// same way `pause(for:)` expects.
+    func resume() {
+        do {
+            try historyStore.resumeActivePause(now: clock.now())
+            refresh()
+        } catch {
+            loadError = error
+        }
     }
 
     /// RUKI-034: pauses starting now, for the chosen duration. The caller is

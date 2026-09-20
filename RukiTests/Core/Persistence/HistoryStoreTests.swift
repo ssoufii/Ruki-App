@@ -130,6 +130,28 @@ struct HistoryStoreTests {
         #expect(snapshots.contains { $0.endsAt == nil })
     }
 
+    @Test("resumeActivePause ends whatever pause covers now, open-ended or fixed-length alike (RDP-3)")
+    func resumeActivePauseEndsAnOpenEndedPause() throws {
+        let store = try makeStore()
+        try store.recordPause(startedAt: referenceDate.addingTimeInterval(-3600), endsAt: nil)
+
+        try store.resumeActivePause(now: referenceDate)
+
+        let snapshots = try store.pauseSnapshots()
+        #expect(snapshots.first?.endsAt == referenceDate)
+    }
+
+    @Test("resumeActivePause is a no-op when no pause covers now")
+    func resumeActivePauseNoOpWhenNothingActive() throws {
+        let store = try makeStore()
+        try store.recordPause(startedAt: referenceDate.addingTimeInterval(-7200), endsAt: referenceDate.addingTimeInterval(-3600))
+
+        try store.resumeActivePause(now: referenceDate)
+
+        let snapshots = try store.pauseSnapshots()
+        #expect(snapshots.first?.endsAt == referenceDate.addingTimeInterval(-3600))
+    }
+
     @Test("Expired photos are purged; the check-in record survives (D26, D37)")
     func purgesExpiredPhotosOnly() throws {
         let container = try RukiModelContainer.make(inMemory: true)

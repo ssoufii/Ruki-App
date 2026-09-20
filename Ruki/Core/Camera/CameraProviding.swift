@@ -9,7 +9,7 @@ enum CaptureMode: Sendable {
 
 /// Result of a single capture. `frontImageData` is `nil` for `.spaceOnly`
 /// captures and on sequential-fallback hardware that only shot the rear frame.
-struct CapturedPhoto: Sendable {
+struct CapturedPhoto: Sendable, Equatable {
     let frontImageData: Data?
     let rearImageData: Data
 }

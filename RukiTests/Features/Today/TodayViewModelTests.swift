@@ -176,4 +176,34 @@ struct TodayViewModelTests {
         #expect(updated.status == .missed)
         #expect(updated.status.label == "No check-in")
     }
+
+    @Test("Pausing freezes the currently-open slot instead of leaving it to resolve as missed (RUKI-034)")
+    func pausingFreezesTheOpenSlot() throws {
+        // Inside Dhuhr's window.
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T18:00:00Z")!
+        let (viewModel, historyStore, _) = try makeViewModel(now: now)
+        viewModel.refresh()
+
+        viewModel.pause(for: .untilResumed)
+
+        let dhuhrRow = try #require(viewModel.rows.first { $0.slot.prayer == .dhuhr })
+        #expect(dhuhrRow.status == .paused)
+        let pauses = try historyStore.pauseSnapshots()
+        #expect(pauses.count == 1)
+        #expect(pauses.first?.startedAt == now)
+        #expect(pauses.first?.endsAt == nil)
+    }
+
+    @Test("A fixed-length pause records the right end date")
+    func fixedLengthPauseRecordsEndDate() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T18:00:00Z")!
+        let (viewModel, historyStore, _) = try makeViewModel(now: now)
+
+        viewModel.pause(for: .threeDays)
+
+        let pauses = try historyStore.pauseSnapshots()
+        #expect(pauses.count == 1)
+        #expect(pauses.first?.startedAt == now)
+        #expect(pauses.first?.endsAt == now.addingTimeInterval(3 * 24 * 60 * 60))
+    }
 }

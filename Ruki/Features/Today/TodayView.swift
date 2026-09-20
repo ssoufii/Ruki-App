@@ -11,6 +11,7 @@ struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
     @State private var showingCheckIn = false
+    @State private var markingRow: TodayViewModel.Row?
 
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
@@ -40,7 +41,9 @@ struct TodayView: View {
                         if row.id != viewModel.rows.first?.id {
                             Divider()
                         }
-                        PrayerRowView(row: row)
+                        PrayerRowView(row: row) {
+                            markingRow = row
+                        }
                     }
                 }
                 .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 16))
@@ -63,6 +66,16 @@ struct TodayView: View {
         }
         .sheet(isPresented: $showingCheckIn) {
             ComingSoonScreen(title: "Check-in")
+        }
+        .sheet(item: $markingRow) { row in
+            MissedPrayerMarkView(
+                prayerName: row.slot.prayer.displayName,
+                onMark: { kind in
+                    viewModel.mark(row, as: kind)
+                    markingRow = nil
+                },
+                onCancel: { markingRow = nil }
+            )
         }
     }
 
@@ -103,8 +116,22 @@ struct TodayView: View {
 
 private struct PrayerRowView: View {
     let row: TodayViewModel.Row
+    /// RUKI-026: only a closed, unrecorded window (`.missed`) opens the
+    /// private mark sheet — every other status is informational only.
+    let onTapMissed: () -> Void
 
     var body: some View {
+        if row.status == .missed {
+            Button(action: onTapMissed) {
+                content
+            }
+            .buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         HStack {
             Image(systemName: row.status.symbolName)
                 .foregroundStyle(RukiPalette.secondaryText)

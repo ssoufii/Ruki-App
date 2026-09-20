@@ -147,4 +147,33 @@ struct TodayViewModelTests {
         let fajrRow = try #require(viewModel.rows.first { $0.slot.prayer == .fajr })
         #expect(fajrRow.status == .notTracked)
     }
+
+    @Test("Marking a closed, unrecorded window as prayed updates its row and counts toward the streak (RUKI-026)")
+    func markingAsPrayedUpdatesRowStatus() throws {
+        // 7 a.m. Toronto: Fajr's window is closed with no check-in.
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T11:00:00Z")!
+        let (viewModel, _, _) = try makeViewModel(now: now)
+        viewModel.refresh()
+        let fajrRow = try #require(viewModel.rows.first { $0.slot.prayer == .fajr })
+        #expect(fajrRow.status == .missed)
+
+        viewModel.mark(fajrRow, as: .prayed)
+
+        let updated = try #require(viewModel.rows.first { $0.slot.prayer == .fajr })
+        #expect(updated.status == .markedPrayed)
+    }
+
+    @Test("Marking a closed, unrecorded window as not prayed keeps it neutral, never a re-flagged failure")
+    func markingAsNotPrayedStaysNeutral() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T11:00:00Z")!
+        let (viewModel, _, _) = try makeViewModel(now: now)
+        viewModel.refresh()
+        let fajrRow = try #require(viewModel.rows.first { $0.slot.prayer == .fajr })
+
+        viewModel.mark(fajrRow, as: .missed)
+
+        let updated = try #require(viewModel.rows.first { $0.slot.prayer == .fajr })
+        #expect(updated.status == .missed)
+        #expect(updated.status.label == "No check-in")
+    }
 }

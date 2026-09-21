@@ -30,8 +30,19 @@ enum DebugClockScenario: String, CaseIterable, Sendable, Identifiable {
     /// The instant this scenario represents. Always computed against the
     /// standard madhab: Asr's two timings don't change which scenario this
     /// is, only shift it by the same few minutes either way.
+    ///
+    /// Always the *next* occurrence, never one already behind `referenceNow`:
+    /// a prayer that began before onboarding is "before you started using
+    /// Ruki" and can't be checked in for, so jumping back to it would leave
+    /// nothing to tap.
     func date(referenceNow: Date) -> Date {
-        let windows = FixedPrayerTimeProvider().prayerWindows(for: referenceNow, madhab: .standard)
+        let today = date(onDayOf: referenceNow)
+        if today > referenceNow { return today }
+        return date(onDayOf: TorontoCalendar.startOfDay(byAdding: 1, to: referenceNow))
+    }
+
+    private func date(onDayOf day: Date) -> Date {
+        let windows = FixedPrayerTimeProvider().prayerWindows(for: day, madhab: .standard)
         // Force unwrap is safe: `FixedPrayerTimeProvider` always returns
         // exactly one window per `Prayer` case.
         func window(for prayer: Prayer) -> PrayerWindow {

@@ -27,19 +27,17 @@ struct RootView: View {
                     notificationAuthorizer: environment.notificationAuthorizer,
                     onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
                     onDeleteAllData: { await environment.deleteAllOnDeviceData() },
-                    onDebugSendTestPrompt: { await environment.scheduleDebugTestPrompt() }
+                    onDebugSendTestPrompt: { await environment.scheduleDebugTestPrompt() },
+                    refreshTrigger: environment.router.checkInDismissals
                 )
             }
         }
         .background(RukiPalette.background)
         .fullScreenCover(isPresented: pendingCheckInPresented) {
-            // A real `CheckInFlowView` needs a `CameraProviding`, which
-            // doesn't exist yet outside test fakes (RUKI-020 builds the
-            // real and Simulator-placeholder providers). Until then this
-            // matches `TodayView`'s own check-in doorway — the routing
-            // itself (straight from the tap, no interstitial) is what this
-            // story delivers.
-            ComingSoonScreen(title: pendingCheckInTitle)
+            // Straight from the tap into the check-in — no Today-screen stop
+            // (RUKI-014) — but resolved against *now*: a prompt tapped after
+            // the window closed, or after checking in, must not open a camera.
+            PendingCheckInView(route: pendingCheckInRoute)
         }
     }
 
@@ -52,14 +50,15 @@ struct RootView: View {
         )
     }
 
-    private var pendingCheckInTitle: String {
-        guard
-            let slotID = environment.router.pendingCheckInSlotID,
-            let prayer = PrayerSlot.prayer(fromID: slotID)
-        else {
-            return String(localized: "Check-in")
-        }
-        return String(localized: "Check in for \(prayer.displayName)")
+    private var pendingCheckInRoute: CheckInRouteResolver.Route {
+        guard let slotID = environment.router.pendingCheckInSlotID else { return .unknown }
+        return CheckInRouteResolver(
+            timeline: environment.timeline,
+            clock: environment.clock,
+            userSettings: environment.userSettings,
+            historyStore: environment.historyStore,
+            cameraProvider: environment.cameraProvider
+        ).route(forSlotID: slotID)
     }
 }
 

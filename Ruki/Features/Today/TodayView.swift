@@ -38,6 +38,10 @@ struct TodayView: View {
     /// its own doc comment for why this is threaded unconditionally.
     let onDebugSendTestPrompt: () async -> Void
 
+    /// Bumped by the app when the notification check-in cover closes, so the
+    /// rows update the moment the person returns rather than on the next tick.
+    let refreshTrigger: Int
+
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
     /// in for it themselves (CLAUDE.md's no-`Date()` rule is about the app's
     /// notion of "now", not about what wakes the UI up to ask for it again).
@@ -52,7 +56,8 @@ struct TodayView: View {
         notificationAuthorizer: any NotificationAuthorizing,
         onScheduleAffectingChange: @escaping () async -> Void,
         onDeleteAllData: @escaping () async -> Bool,
-        onDebugSendTestPrompt: @escaping () async -> Void = {}
+        onDebugSendTestPrompt: @escaping () async -> Void = {},
+        refreshTrigger: Int = 0
     ) {
         _viewModel = State(
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
@@ -66,6 +71,7 @@ struct TodayView: View {
         self.onScheduleAffectingChange = onScheduleAffectingChange
         self.onDeleteAllData = onDeleteAllData
         self.onDebugSendTestPrompt = onDebugSendTestPrompt
+        self.refreshTrigger = refreshTrigger
     }
 
     var body: some View {
@@ -133,6 +139,7 @@ struct TodayView: View {
         .background(RukiPalette.background)
         .task { viewModel.refresh() }
         .onReceive(ticker) { _ in viewModel.refresh() }
+        .onChange(of: refreshTrigger) { _, _ in viewModel.refresh() }
         .sheet(isPresented: $showingPause) {
             PauseDurationView { duration in
                 viewModel.pause(for: duration)

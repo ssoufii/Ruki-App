@@ -4,7 +4,8 @@ import Foundation
 /// logic is testable against a fake and the real server (a local dev server
 /// now, D43; Supabase later) is swappable.
 protocol SocialBackend: Sendable {
-    func register(username: String) async throws -> SocialAccount
+    func register(username: String, password: String) async throws -> SocialAccount
+    func login(username: String, password: String) async throws -> SocialAccount
     func friends() async throws -> FriendsSnapshot
     func requestFriend(username: String) async throws
     func acceptFriend(userID: String) async throws
@@ -33,6 +34,8 @@ enum SocialError: LocalizedError, Equatable {
             case "their_circle_full": String(localized: "Their circle is full.")
             case "no_such_user": String(localized: "No one has that username.")
             case "username_taken": String(localized: "That username is taken.")
+            case "invalid_credentials": String(localized: "That username and password don't match.")
+            case "weak_password": String(localized: "Use at least 8 characters for your password.")
             case "invalid_username": String(localized: "Use 3–20 letters, numbers or underscores.")
             case "cannot_add_self": String(localized: "That's you.")
             case "unauthorized": String(localized: "This account isn't known to the server. Reset it in Circle.")

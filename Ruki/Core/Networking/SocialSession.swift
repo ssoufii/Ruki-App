@@ -47,16 +47,23 @@ final class SocialSession: CheckInPublishing {
 
     // MARK: Account
 
-    func register(username: String) async {
+    func register(username: String, password: String) async {
         await perform { backend in
-            let account = try await backend.register(username: username.trimmingCharacters(in: .whitespaces))
-            self.setAccount(account)
+            self.setAccount(try await backend.register(username: username.trimmingCharacters(in: .whitespaces), password: password))
         }
-        await refreshFriends()
+        if isSignedIn { await refreshFriends() }
     }
 
-    /// Forget the account on this device only (e.g. after wiping the server's data folder).
-    func signOutLocally() {
+    func logIn(username: String, password: String) async {
+        await perform { backend in
+            self.setAccount(try await backend.login(username: username.trimmingCharacters(in: .whitespaces), password: password))
+        }
+        if isSignedIn { await refreshFriends() }
+    }
+
+    /// Log out of this device. The account and its circle stay on the server;
+    /// logging back in restores them.
+    func logOut() {
         setAccount(nil)
         friends = .empty
         feed = []
@@ -70,7 +77,7 @@ final class SocialSession: CheckInPublishing {
         guard let backend = backend() else { return false }
         do {
             try await backend.deleteAccount()
-            signOutLocally()
+            logOut()
             return true
         } catch {
             message = error.localizedDescription

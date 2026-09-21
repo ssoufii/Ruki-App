@@ -12,10 +12,13 @@ Values rules enforced HERE, not just in the app:
   - D9: a friend's post is locked (no caption, no photo keys, photo fetch refused)
     until the viewer has checked in for the same prayer.
   - D18: a circle is at most FRIEND_CAP people.
-This is a dev server: no TLS, username-only sign-up, token = credential.
+Passwords are stored only as salted scrypt hashes.
+This is a dev server: no TLS, no rate limiting, token = credential.
 """
 import base64
 import contextlib
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -32,6 +35,8 @@ MAX_PHOTO_BYTES = 6 * 1024 * 1024
 MAX_BODY_BYTES = 16 * 1024 * 1024
 PRAYERS = {"fajr", "dhuhr", "asr", "maghrib", "isha"}
 USERNAME_RE = re.compile(r"^[a-z0-9_]{3,20}$")
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
 
 DATA_DIR = Path(os.environ.get("RUKI_DATA", Path(__file__).parent / "data"))
 PHOTO_DIR = DATA_DIR / "photos"
@@ -39,7 +44,8 @@ DB_PATH = DATA_DIR / "ruki.sqlite"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, token TEXT UNIQUE NOT NULL, created_at REAL NOT NULL);
+  id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, token TEXT UNIQUE NOT NULL, created_at REAL NOT NULL,
+  password_salt BLOB, password_hash BLOB);
 CREATE TABLE IF NOT EXISTS friendships (
   requester TEXT NOT NULL, addressee TEXT NOT NULL, status TEXT NOT NULL, created_at REAL NOT NULL,
   PRIMARY KEY (requester, addressee));
@@ -77,6 +83,12 @@ def init_storage():
     PHOTO_DIR.mkdir(parents=True, exist_ok=True)
     with connection() as conn:
         conn.executescript(SCHEMA)
+        # A dev database from before passwords existed: add the columns. Those
+        # old accounts have no password, so they can no longer be logged into.
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "password_hash" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN password_salt BLOB")
+            conn.execute("ALTER TABLE users ADD COLUMN password_hash BLOB")
 
 
 def purge_expired(conn, now):
@@ -107,6 +119,10 @@ def viewer_has_checked_in(conn, viewer, slot_id):
     ).fetchone() is not None
 
 
+def hash_password(password, salt):
+    return hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
+
+
 def user_json(row):
     return {"userID": row["id"], "username": row["username"]}
 
@@ -119,9 +135,27 @@ def register(conn, _user, body, now):
         raise ApiError(400, "invalid_username")
     if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
         raise ApiError(409, "username_taken")
-    uid, token = str(uuid.uuid4()), secrets.token_urlsafe(24)
-    conn.execute("INSERT INTO users VALUES (?,?,?,?)", (uid, username, token, now))
+    password = str(body.get("password", ""))
+    if not MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH:
+        raise ApiError(400, "weak_password")
+    uid, token, salt = str(uuid.uuid4()), secrets.token_urlsafe(24), secrets.token_bytes(16)
+    conn.execute("INSERT INTO users (id, username, token, created_at, password_salt, password_hash) VALUES (?,?,?,?,?,?)",
+                 (uid, username, token, now, salt, hash_password(password, salt)))
     return {"userID": uid, "username": username, "token": token}
+
+
+def login(conn, _user, body, _now):
+    row = conn.execute("SELECT * FROM users WHERE username=?", (str(body.get("username", "")).strip().lower(),)).fetchone()
+    password = str(body.get("password", ""))[:MAX_PASSWORD_LENGTH]
+    # Same answer and same work whether the username or the password is wrong,
+    # so a caller can't use login to learn which usernames exist.
+    salt = row["password_salt"] if row and row["password_salt"] else b"\0" * 16
+    candidate = hash_password(password, salt)
+    stored = row["password_hash"] if row and row["password_hash"] else None
+    if stored is None or not hmac.compare_digest(candidate, stored):
+        raise ApiError(401, "invalid_credentials")
+    # One token per account, so a phone and a simulator can be logged in at once.
+    return {"userID": row["id"], "username": row["username"], "token": row["token"]}
 
 
 def list_friends(conn, user, _body, _now):
@@ -252,6 +286,7 @@ def delete_account(conn, user, _body, _now):
 
 ROUTES = {
     ("POST", "/register"): (register, False),
+    ("POST", "/login"): (login, False),
     ("GET", "/friends"): (list_friends, True),
     ("POST", "/friends/request"): (request_friend, True),
     ("POST", "/friends/accept"): (accept_friend, True),

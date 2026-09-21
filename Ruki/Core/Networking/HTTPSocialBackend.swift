@@ -10,8 +10,12 @@ struct HTTPSocialBackend: SocialBackend {
 
     // MARK: SocialBackend
 
-    func register(username: String) async throws -> SocialAccount {
-        try await send("POST", "/register", body: ["username": username])
+    func register(username: String, password: String) async throws -> SocialAccount {
+        try await send("POST", "/register", body: ["username": username, "password": password])
+    }
+
+    func login(username: String, password: String) async throws -> SocialAccount {
+        try await send("POST", "/login", body: ["username": username, "password": password])
     }
 
     func friends() async throws -> FriendsSnapshot {

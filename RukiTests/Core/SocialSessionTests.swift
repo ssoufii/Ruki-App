@@ -5,8 +5,12 @@ import Testing
 private struct FakeSocialBackend: SocialBackend {
     var failDelete = false
 
-    func register(username: String) async throws -> SocialAccount {
+    func register(username: String, password: String) async throws -> SocialAccount {
         SocialAccount(userID: "u1", username: username, token: "t")
+    }
+    func login(username: String, password: String) async throws -> SocialAccount {
+        if password != "right-password" { throw SocialError.server(code: "invalid_credentials") }
+        return SocialAccount(userID: "u1", username: username, token: "t")
     }
     func friends() async throws -> FriendsSnapshot { .empty }
     func requestFriend(username: String) async throws {}
@@ -30,7 +34,7 @@ struct SocialSessionTests {
     func registerPersists() async {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let first = SocialSession(defaults: defaults, makeBackend: { _, _ in FakeSocialBackend() })
-        await first.register(username: "salim")
+        await first.register(username: "salim", password: "right-password")
         #expect(first.account?.username == "salim")
         #expect(SocialSession(defaults: defaults).account?.username == "salim")
     }
@@ -38,7 +42,7 @@ struct SocialSessionTests {
     @Test("A failed server delete changes nothing and reports failure")
     func failedDeleteKeepsAccount() async {
         let s = session(failDelete: true)
-        await s.register(username: "salim")
+        await s.register(username: "salim", password: "right-password")
         #expect(await s.deleteAccount() == false)
         #expect(s.isSignedIn)
     }
@@ -47,8 +51,21 @@ struct SocialSessionTests {
     func deleteSignsOut() async {
         let s = session()
         #expect(await s.deleteAccount())
-        await s.register(username: "salim")
+        await s.register(username: "salim", password: "right-password")
         #expect(await s.deleteAccount())
+        #expect(!s.isSignedIn)
+    }
+
+    @Test("A wrong password leaves you logged out with a plain message; logging out then in restores the account")
+    func loginAndLogout() async {
+        let s = session()
+        await s.logIn(username: "salim", password: "nope")
+        #expect(!s.isSignedIn)
+        #expect(s.message == SocialError.server(code: "invalid_credentials").localizedDescription)
+
+        await s.logIn(username: "salim", password: "right-password")
+        #expect(s.isSignedIn)
+        s.logOut()
         #expect(!s.isSignedIn)
     }
 }

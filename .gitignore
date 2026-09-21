@@ -14,3 +14,7 @@ xcuserdata/
 
 # Env
 .env
+
+# Local dev server data (accounts, password hashes, photos)
+server/data/
+__pycache__/

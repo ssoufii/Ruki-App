@@ -40,7 +40,7 @@ class ServerRules(unittest.TestCase):
             return e.code, json.loads(e.read())
 
     def user(self, name):
-        status, body = self.call("POST", "/register", {"username": name})
+        status, body = self.call("POST", "/register", {"username": name, "password": "correct horse"})
         self.assertEqual(status, 200)
         return body
 
@@ -105,6 +105,22 @@ class ServerRules(unittest.TestCase):
         conn.commit()
         self.call("GET", "/feed", token=u["token"])  # any request purges
         self.assertFalse((server.PHOTO_DIR / keys).exists())
+
+    def test_login_needs_the_right_password_and_never_says_which_part_was_wrong(self):
+        u = self.user("login_user")
+        ok = self.call("POST", "/login", {"username": "LOGIN_user", "password": "correct horse"})
+        self.assertEqual((ok[0], ok[1]["token"]), (200, u["token"]))
+        wrong_pw = self.call("POST", "/login", {"username": "login_user", "password": "wrong horse"})
+        no_user = self.call("POST", "/login", {"username": "nobody_here", "password": "correct horse"})
+        self.assertEqual((wrong_pw[0], wrong_pw[1]), (401, {"error": "invalid_credentials"}))
+        self.assertEqual((no_user[0], no_user[1]), (401, {"error": "invalid_credentials"}))
+
+    def test_short_passwords_are_refused_and_never_stored_in_the_clear(self):
+        self.assertEqual(self.call("POST", "/register", {"username": "weak_user", "password": "short"})[1]["error"],
+                         "weak_password")
+        self.user("hashed_user")
+        row = server.db().execute("SELECT * FROM users WHERE username='hashed_user'").fetchone()
+        self.assertNotIn(b"correct horse", bytes(row["password_hash"]) + bytes(row["password_salt"]))
 
     def test_delete_account_removes_everything(self):
         u, v = self.user("gone_user"), self.user("stays_user")

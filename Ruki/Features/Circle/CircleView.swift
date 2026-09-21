@@ -5,65 +5,56 @@ import SwiftUI
 struct CircleView: View {
     let session: SocialSession
     @Environment(\.dismiss) private var dismiss
-    @State private var username = ""
     @State private var friendUsername = ""
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let account = session.account {
-                    Section("You") {
-                        LabeledContent("Username", value: account.username)
-                    }
-                    addFriendSection
-                    requestsSection
-                    circleSection
+            Group {
+                if session.isSignedIn {
+                    circleForm
                 } else {
-                    signUpSection
-                }
-
-                Section {
-                    TextField("Server address", text: serverBinding)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                    if session.isSignedIn {
-                        Button("Forget this account on this device", role: .destructive) { session.signOutLocally() }
-                    }
-                } header: {
-                    Text("Server")
-                } footer: {
-                    Text("Simulator: http://localhost:8080. On a phone, use your Mac's address, e.g. http://192.168.1.10:8080.")
-                }
-
-                if let message = session.message {
-                    Section { Text(message).foregroundStyle(RukiPalette.secondaryText) }
+                    AccountView(session: session)
                 }
             }
             .navigationTitle("Circle")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { if session.isSignedIn { await session.refreshFriends() } }
-            .disabled(session.isBusy)
         }
+    }
+
+    private var circleForm: some View {
+        Form {
+            if let account = session.account {
+                Section("You") {
+                    LabeledContent("Username", value: account.username)
+                    Button("Log out") { session.logOut() }
+                }
+            }
+            addFriendSection
+            requestsSection
+            circleSection
+
+            Section {
+                TextField("Server address", text: serverBinding)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+            } header: {
+                Text("Server")
+            } footer: {
+                Text("Simulator: http://localhost:8080. On a phone, use your Mac's address, e.g. http://192.168.1.10:8080.")
+            }
+
+            if let message = session.message {
+                Section { Text(message).foregroundStyle(RukiPalette.secondaryText) }
+            }
+        }
+        .disabled(session.isBusy)
     }
 
     private var serverBinding: Binding<String> {
         Binding(get: { session.serverURLString }, set: { session.serverURLString = $0 })
-    }
-
-    private var signUpSection: some View {
-        Section {
-            TextField("Choose a username", text: $username)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Create") { Task { await session.register(username: username) } }
-                .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty)
-        } header: {
-            Text("Join your circle")
-        } footer: {
-            Text("Optional. Ruki works fully on your own. Friends only ever see that you checked in — never a missed prayer.")
-        }
     }
 
     private var addFriendSection: some View {

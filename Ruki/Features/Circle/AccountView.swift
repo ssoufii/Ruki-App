@@ -52,14 +52,14 @@ struct AccountView: View {
         ScrollView {
             VStack(spacing: 24) {
                 VStack(spacing: 8) {
-                    Image(systemName: "person.2.circle")
-                        .font(.system(size: 48, weight: .light))
+                    Image(systemName: "moon.stars.fill")
+                        .font(.system(size: 44))
                         .foregroundStyle(RukiPalette.accent)
                         .accessibilityHidden(true)
-                    Text("Your circle")
-                        .font(.title2.weight(.semibold))
+                    Text("Ruki")
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
                         .foregroundStyle(RukiPalette.primaryText)
-                    Text("Add up to five people you trust. They only ever see that you checked in — never a missed prayer.")
+                    Text("Stay consistent with your prayers, together. Friends only ever see that you checked in — never a missed prayer.")
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(RukiPalette.secondaryText)

@@ -114,9 +114,20 @@ final class TodayViewModel {
     /// RUKI-026: privately marks a closed, unrecorded window as prayed or
     /// not. On-device only (RDP-2) — `HistoryStore.recordMark` never
     /// produces a network event, whichever way the user answers.
-    func mark(_ row: Row, as kind: MarkSnapshot.Kind) {
+    func mark(_ row: Row, as kind: MarkSnapshot.Kind, publisher: (any CheckInPublishing)? = nil) {
         do {
-            try historyStore.recordMark(for: row.slot, kind: kind, markedAt: clock.now())
+            let now = clock.now()
+            try historyStore.recordMark(for: row.slot, kind: kind, markedAt: now)
+            // "I prayed" is shared with the circle as a post with no photo (D49). "I didn't" never
+            // produces a network event (RDP-2). The post lives until the next prayer begins *from now*:
+            // the window has already closed, so the usual "until the next prayer" would be in the past.
+            if kind == .prayed, let publisher, let expiresAt = timeline.nextSlot(after: now)?.window.start {
+                publisher.publish(CheckInUpload(
+                    prayer: row.slot.prayer, slotID: row.slot.id,
+                    onTimeUntil: timeline.onTimeEnd(of: row.slot.window, userWindowMinutes: userSettings.checkInWindowMinutes),
+                    retakeCount: 0, caption: nil, expiresAt: expiresAt, frontPhoto: nil, rearPhoto: nil
+                ))
+            }
             refresh()
         } catch {
             loadError = error

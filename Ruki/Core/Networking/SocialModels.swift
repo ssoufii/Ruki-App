@@ -53,5 +53,6 @@ struct CheckInUpload: Codable, Sendable, Equatable {
     let caption: String?
     let expiresAt: Date
     let frontPhoto: Data?
-    let rearPhoto: Data
+    /// Both photos `nil` is an "I prayed" tick shared without a picture (D49).
+    let rearPhoto: Data?
 }

@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS friendships (
 CREATE TABLE IF NOT EXISTS checkins (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, prayer TEXT NOT NULL, slot_id TEXT NOT NULL,
   prayed_at REAL NOT NULL, is_late INTEGER NOT NULL, retake_count INTEGER NOT NULL, caption TEXT,
-  front_key TEXT, rear_key TEXT NOT NULL, expires_at REAL NOT NULL,
+  front_key TEXT, rear_key TEXT, expires_at REAL NOT NULL,
   UNIQUE (user_id, slot_id));
 """
 
@@ -89,6 +89,18 @@ def init_storage():
         # A dev database from before passwords existed: add the columns. Those
         # old accounts have no password, so they can no longer be logged into.
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        # A check-in without photos ("I prayed", shared with the circle) has no rear_key. Older
+        # databases declared it NOT NULL, and SQLite can't relax that in place: rebuild the table.
+        rear = [row for row in conn.execute("PRAGMA table_info(checkins)") if row["name"] == "rear_key"]
+        if rear and rear[0]["notnull"]:
+            conn.executescript("""
+                ALTER TABLE checkins RENAME TO checkins_old;
+                CREATE TABLE checkins (
+                  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, prayer TEXT NOT NULL, slot_id TEXT NOT NULL,
+                  prayed_at REAL NOT NULL, is_late INTEGER NOT NULL, retake_count INTEGER NOT NULL, caption TEXT,
+                  front_key TEXT, rear_key TEXT, expires_at REAL NOT NULL, UNIQUE (user_id, slot_id));
+                INSERT INTO checkins SELECT * FROM checkins_old;
+                DROP TABLE checkins_old;""")
         if "password_hash" not in columns:
             conn.execute("ALTER TABLE users ADD COLUMN password_salt BLOB")
             conn.execute("ALTER TABLE users ADD COLUMN password_hash BLOB")
@@ -249,14 +261,15 @@ def post_checkin(conn, user, body, now):
     except (KeyError, TypeError, ValueError):
         raise ApiError(400, "bad_request")
     # slotID is "<yyyy-MM-dd>.<prayer>": one post per prayer per day, and the key friends unlock each other by.
-    if prayer not in PRAYERS or not re.fullmatch(r"\d{4}-\d{2}-\d{2}\." + str(prayer), slot_id) or not body.get("rearPhoto"):
+    if prayer not in PRAYERS or not re.fullmatch(r"\d{4}-\d{2}-\d{2}\." + str(prayer), slot_id):
         raise ApiError(400, "bad_request")
     if expires_at <= now:
         raise ApiError(410, "expired")
     if conn.execute("SELECT 1 FROM checkins WHERE user_id=? AND slot_id=?", (user["id"], slot_id)).fetchone():
         raise ApiError(409, "already_posted")
     caption = (str(body["caption"]).strip()[:80] or None) if body.get("caption") else None
-    rear = _store_photo(body["rearPhoto"])
+    # Photos are optional: a post with none is "I prayed" — shown to friends as exactly that.
+    rear = _store_photo(body["rearPhoto"]) if body.get("rearPhoto") else None
     front = _store_photo(body["frontPhoto"]) if body.get("frontPhoto") else None
     conn.execute("INSERT INTO checkins VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                  (str(uuid.uuid4()), user["id"], prayer, slot_id, now, int(now > on_time_until),
@@ -272,7 +285,9 @@ def feed(conn, user, _body, now):
         "ORDER BY c.prayed_at DESC", (user["id"], now)).fetchall()
     posts = []
     for r in rows:
-        locked = not UNLOCK_ALL and not viewer_has_checked_in(conn, user["id"], r["slot_id"])
+        has_photos = bool(r["front_key"] or r["rear_key"])
+        # D9 hides photos until you take part. A post with no photos ("I prayed") hides nothing.
+        locked = has_photos and not UNLOCK_ALL and not viewer_has_checked_in(conn, user["id"], r["slot_id"])
         post = {"id": r["id"], "username": r["username"], "prayer": r["prayer"], "prayedAt": r["prayed_at"],
                 "isLate": bool(r["is_late"]), "expiresAt": r["expires_at"], "locked": locked}
         if not locked:

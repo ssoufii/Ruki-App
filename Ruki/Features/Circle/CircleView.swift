@@ -4,7 +4,6 @@ import SwiftUI
 /// sides. Shows no counts of anyone's activity, only who is in the circle.
 struct CircleView: View {
     let session: SocialSession
-    @Environment(\.dismiss) private var dismiss
     @State private var friendUsername = ""
 
     var body: some View {
@@ -18,7 +17,6 @@ struct CircleView: View {
             }
             .navigationTitle("Circle")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { if session.isSignedIn { await session.refreshFriends() } }
         }
     }

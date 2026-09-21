@@ -1,49 +1,26 @@
 import Combine
 import SwiftUI
 
-/// T2: the app's home screen once onboarding is done. Shows the current or
-/// next prayer with a gentle countdown, a live card for whatever's open right
-/// now, and today's five prayer rows. Pause (RUKI-034), Settings (RUKI-036),
-/// History (RUKI-032), and check-in (RUKI-019/020) are all real flows from
-/// here.
+/// The Today tab: the prayer that's open right now, then the day at a glance —
+/// five equal circles, one per prayer. Deliberately centered and symmetric; the
+/// per-prayer detail lives in the hero card, so the strip stays quiet.
+/// RUKI-036's settings and the history calendar live on the Profile tab.
 struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var showingPause = false
     @State private var checkInRow: TodayViewModel.Row?
-    @State private var showingSettings = false
-    @State private var showingHistory = false
-    @State private var showingCircle = false
-    @State private var showingFeed = false
-    @Environment(\.scenePhase) private var scenePhase
     @State private var markingRow: TodayViewModel.Row?
+    @Environment(\.scenePhase) private var scenePhase
 
     private let cameraProvider: any CameraProviding
     private let social: SocialSession
-
-    /// Kept only to hand to `CalendarView` (RUKI-032) when History is opened
-    /// — `viewModel` already owns its own copy for Today's own rows.
-    private let timeline: PrayerTimeline
     private let clock: any ClockProviding
-    private let userSettings: UserSettings
-    private let historyStore: HistoryStore
-    private let notificationAuthorizer: any NotificationAuthorizing
 
-    /// Called after a pause or a schedule-affecting settings change is
-    /// recorded (RUKI-034, RUKI-036), so notifications get re-planned
-    /// without this view owning any scheduling logic itself.
+    /// Called after pause/resume so the notification horizon re-plans (RUKI-034).
     let onScheduleAffectingChange: () async -> Void
 
-    /// RUKI-037: "Delete my data on this device", forwarded to
-    /// `AppEnvironment` — wiping SwiftData and cancelling notifications
-    /// needs the scheduler this view never otherwise touches.
-    let onDeleteAllData: () async -> Bool
-
-    /// T3 DEBUG tools only, forwarded through to `SettingsViewModel` — see
-    /// its own doc comment for why this is threaded unconditionally.
-    let onDebugSendTestPrompt: () async -> Void
-
-    /// Bumped by the app when the notification check-in cover closes, so the
-    /// rows update the moment the person returns rather than on the next tick.
+    /// Bumped by `AppRouter` whenever a check-in cover closes, so this screen
+    /// re-reads history instead of showing the state from before it opened.
     let refreshTrigger: Int
 
     /// Minute ticks only trigger a re-read of `clock.now()`; they never stand
@@ -58,10 +35,7 @@ struct TodayView: View {
         historyStore: HistoryStore,
         cameraProvider: any CameraProviding,
         social: SocialSession,
-        notificationAuthorizer: any NotificationAuthorizing,
         onScheduleAffectingChange: @escaping () async -> Void,
-        onDeleteAllData: @escaping () async -> Bool,
-        onDebugSendTestPrompt: @escaping () async -> Void = {},
         refreshTrigger: Int = 0
     ) {
         _viewModel = State(
@@ -69,99 +43,25 @@ struct TodayView: View {
         )
         self.cameraProvider = cameraProvider
         self.social = social
-        self.timeline = timeline
         self.clock = clock
-        self.userSettings = userSettings
-        self.historyStore = historyStore
-        self.notificationAuthorizer = notificationAuthorizer
         self.onScheduleAffectingChange = onScheduleAffectingChange
-        self.onDeleteAllData = onDeleteAllData
-        self.onDebugSendTestPrompt = onDebugSendTestPrompt
         self.refreshTrigger = refreshTrigger
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    Text(viewModel.headline)
-                        .font(.title2)
-                        .foregroundStyle(RukiPalette.primaryText)
-                        .accessibilityAddTraits(.updatesFrequently)
-                    Spacer()
-                    Button {
-                        showingFeed = true
-                    } label: {
-                        Image(systemName: "photo.on.rectangle")
-                            .foregroundStyle(RukiPalette.secondaryText)
-                    }
-                    .accessibilityLabel("Friends' check-ins")
-                    Button {
-                        showingCircle = true
-                    } label: {
-                        Image(systemName: "person.2")
-                            .foregroundStyle(RukiPalette.secondaryText)
-                            .overlay(alignment: .topTrailing) {
-                                if !social.pendingInvitations.isEmpty {
-                                    Circle().fill(RukiPalette.accent).frame(width: 9, height: 9).offset(x: 4, y: -3)
-                                }
-                            }
-                    }
-                    .accessibilityLabel("Circle")
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .foregroundStyle(RukiPalette.secondaryText)
-                    }
-                    .accessibilityLabel("Settings")
-                }
+            VStack(spacing: 22) {
+                header
 
                 ForEach(social.pendingInvitations) { invitation in
                     invitationCard(invitation)
                 }
 
-                if let activeRow = viewModel.activeRow {
-                    checkInCard(for: activeRow)
-                }
+                heroCard
 
-                VStack(spacing: 0) {
-                    ForEach(viewModel.rows) { row in
-                        if row.id != viewModel.rows.first?.id {
-                            Divider()
-                        }
-                        PrayerRowView(row: row) {
-                            markingRow = row
-                        }
-                    }
-                }
-                .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 16))
+                prayerStrip
 
-                HStack {
-                    Button {
-                        showingHistory = true
-                    } label: {
-                        Text("History")
-                            .font(.subheadline)
-                            .foregroundStyle(RukiPalette.secondaryText)
-                    }
-                    Spacer()
-                    Button {
-                        if viewModel.isPaused {
-                            // RDP-3: resuming is one tap, no confirmation —
-                            // pausing itself needs no reason, so turning it
-                            // back on shouldn't need one either.
-                            viewModel.resume()
-                            Task { await onScheduleAffectingChange() }
-                        } else {
-                            showingPause = true
-                        }
-                    } label: {
-                        Text(viewModel.isPaused ? "Resume check-ins" : "Pause check-ins")
-                            .font(.subheadline)
-                            .foregroundStyle(RukiPalette.secondaryText)
-                    }
-                }
+                pauseButton
             }
             .padding()
         }
@@ -189,38 +89,119 @@ struct TodayView: View {
             CheckInFlowView(viewModel: viewModel.makeCheckInViewModel(for: row, cameraProvider: cameraProvider, publisher: social))
                 .onDisappear { viewModel.refresh() }
         }
-        .sheet(isPresented: $showingCircle) { CircleView(session: social) }
-        .sheet(isPresented: $showingFeed) { FeedView(session: social) }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView(
-                viewModel: SettingsViewModel(
-                    userSettings: userSettings,
-                    notificationAuthorizer: notificationAuthorizer,
-                    historyStore: historyStore,
-                    clock: clock,
-                    onScheduleAffectingChange: onScheduleAffectingChange,
-                    onDeleteAllData: onDeleteAllData,
-                    onDebugSendTestPrompt: onDebugSendTestPrompt
-                ),
-                social: social
-            )
-            .onDisappear { viewModel.refresh() }
-        }
-        .sheet(isPresented: $showingHistory) {
-            NavigationStack {
-                CalendarView(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
-            }
-        }
         .sheet(item: $markingRow) { row in
             MissedPrayerMarkView(
                 prayerName: row.slot.prayer.displayName,
+                sharesWithCircle: social.isSignedIn,
                 onMark: { kind in
-                    viewModel.mark(row, as: kind)
+                    viewModel.mark(row, as: kind, publisher: social)
                     markingRow = nil
                 },
                 onCancel: { markingRow = nil }
             )
+            .presentationDetents([.medium])
         }
+    }
+
+    // MARK: Sections
+
+    private var header: some View {
+        VStack(spacing: 2) {
+            Text("Ruki")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(RukiPalette.primaryText)
+            Text(clock.now().formatted(Date.FormatStyle(timeZone: TorontoCalendar.timeZone).weekday(.wide).month(.wide).day()))
+                .font(.subheadline)
+                .foregroundStyle(RukiPalette.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var heroCard: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle().fill(RukiPalette.accent.opacity(0.14)).frame(width: 76, height: 76)
+                Image(systemName: heroPrayer.symbolName)
+                    .font(.system(size: 32))
+                    .foregroundStyle(RukiPalette.accent)
+            }
+            .accessibilityHidden(true)
+
+            if let active = viewModel.activeRow {
+                Text(active.slot.prayer.displayName)
+                    .font(.system(size: 34, weight: .semibold, design: .rounded))
+                    .foregroundStyle(RukiPalette.primaryText)
+            }
+
+            Text(viewModel.headline)
+                .font(viewModel.activeRow == nil ? .title3 : .subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(viewModel.activeRow == nil ? RukiPalette.primaryText : RukiPalette.secondaryText)
+                .accessibilityAddTraits(.updatesFrequently)
+
+            if let active = viewModel.activeRow {
+                checkInCard(for: active)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 20)
+        .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(RukiPalette.accent.opacity(0.12)))
+    }
+
+    private var prayerStrip: some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(viewModel.rows) { row in
+                    PrayerChip(row: row, isActive: row.id == viewModel.activeRow?.id) {
+                        markingRow = row
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            if tracked > 0 {
+                Text("\(completed) of \(tracked) prayers today")
+                    .font(.footnote)
+                    .foregroundStyle(RukiPalette.secondaryText)
+            }
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
+        .background(RukiPalette.surface.opacity(0.55), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var pauseButton: some View {
+        Button {
+            if viewModel.isPaused {
+                // RDP-3: resuming is one tap, no confirmation — pausing itself
+                // needs no reason, so turning it back on shouldn't need one either.
+                viewModel.resume()
+                Task { await onScheduleAffectingChange() }
+            } else {
+                showingPause = true
+            }
+        } label: {
+            Text(viewModel.isPaused ? "Resume check-ins" : "Pause check-ins")
+                .font(.subheadline)
+                .foregroundStyle(RukiPalette.secondaryText)
+        }
+    }
+
+    // MARK: Pieces
+
+    /// The prayer the hero card's icon shows: the open one, else the next to come.
+    private var heroPrayer: Prayer {
+        viewModel.activeRow?.slot.prayer
+            ?? viewModel.rows.first { $0.status == .upcoming }?.slot.prayer
+            ?? .fajr
+    }
+
+    private var tracked: Int { viewModel.rows.filter { $0.status != .notTracked }.count }
+
+    private var completed: Int {
+        viewModel.rows.filter { [.checkedInOnTime, .checkedInLate, .markedPrayed].contains($0.status) }.count
     }
 
     @ViewBuilder
@@ -236,25 +217,37 @@ struct TodayView: View {
                     .padding()
                     .frame(maxWidth: .infinity)
             }
-            .background(RukiPalette.accent, in: RoundedRectangle(cornerRadius: 12))
+            .background(RukiPalette.accent, in: RoundedRectangle(cornerRadius: 14))
         case .checkedInOnTime:
-            statusCard(String(localized: "You checked in for \(row.slot.prayer.displayName)."))
+            statusPill(String(localized: "You checked in for \(row.slot.prayer.displayName)."), symbol: "checkmark.circle.fill")
         case .checkedInLate:
-            statusCard(String(localized: "Checked in late for \(row.slot.prayer.displayName) — still counts."))
+            statusPill(String(localized: "Checked in late for \(row.slot.prayer.displayName) — still counts."), symbol: "checkmark.circle.fill")
         case .paused:
-            statusCard(String(localized: "Check-ins are paused."))
+            statusPill(String(localized: "Check-ins are paused."), symbol: "pause.circle")
         case .upcoming, .markedPrayed, .missed, .notTracked:
             EmptyView()
         }
     }
 
+    private func statusPill(_ text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(RukiPalette.primaryText)
+            .multilineTextAlignment(.center)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .background(RukiPalette.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 14))
+    }
+
     /// A friend asked you into their circle. In-app, not a system push: a push
     /// needs the real backend (D43). Declining just removes the request.
     private func invitationCard(_ friend: Friend) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("\(friend.username) invited you to their circle")
+        VStack(spacing: 12) {
+            Label("\(friend.username) invited you to their circle", systemImage: "person.2.fill")
                 .font(.headline)
                 .foregroundStyle(RukiPalette.primaryText)
+                .multilineTextAlignment(.center)
             if let message = social.message {
                 Text(message)
                     .font(.subheadline)
@@ -280,70 +273,93 @@ struct TodayView: View {
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity)
                 }
-                .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 12))
+                .background(RukiPalette.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
             }
         }
         .padding()
-        .background(RukiPalette.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 16))
+        .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .contain)
-    }
-
-    private func statusCard(_ text: String) -> some View {
-        Text(text)
-            .font(.headline)
-            .foregroundStyle(RukiPalette.primaryText)
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
-private struct PrayerRowView: View {
+// MARK: - Prayer chip
+
+/// One prayer in the day strip. Every chip is the same size so the row stays
+/// symmetric; state is carried by fill, ring and icon rather than by text.
+private struct PrayerChip: View {
     let row: TodayViewModel.Row
-    /// RUKI-026: only a closed, unrecorded window (`.missed`) opens the
-    /// private mark sheet — every other status is informational only.
+    let isActive: Bool
+    /// Only a closed, unrecorded prayer is tappable (RUKI-026); every other status is informational.
     let onTapMissed: () -> Void
 
     var body: some View {
-        if row.status == .missed {
-            Button(action: onTapMissed) {
-                content
+        Group {
+            if row.status == .missed {
+                Button(action: onTapMissed) { chip }
+            } else {
+                chip
             }
-            .buttonStyle(.plain)
-        } else {
-            content
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(row.slot.prayer.displayName), \(row.status.label)")
+    }
+
+    private var chip: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle().fill(fill)
+                Circle().strokeBorder(ringColor, style: StrokeStyle(lineWidth: isActive ? 2.5 : 1.5, dash: dashed ? [3, 3] : []))
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(iconColor)
+            }
+            .frame(width: 50, height: 50)
+            Text(row.slot.prayer.displayName)
+                .font(.caption.weight(isActive ? .semibold : .regular))
+                .foregroundStyle(row.status == .notTracked ? RukiPalette.secondaryText.opacity(0.5) : RukiPalette.primaryText)
         }
     }
 
-    private var content: some View {
-        HStack {
-            Image(systemName: row.status.symbolName)
-                .foregroundStyle(RukiPalette.secondaryText)
-                .accessibilityHidden(true)
-            Text(row.slot.prayer.displayName)
-                .font(.body)
-                .foregroundStyle(RukiPalette.primaryText)
-            Spacer()
-            Text(row.status.label)
-                .font(.subheadline)
-                .foregroundStyle(RukiPalette.secondaryText)
+    private var isDone: Bool { [.checkedInOnTime, .checkedInLate, .markedPrayed].contains(row.status) }
+    private var dashed: Bool { row.status == .upcoming || row.status == .notTracked }
+
+    private var fill: Color { isDone ? RukiPalette.accent : RukiPalette.background.opacity(0.6) }
+
+    private var ringColor: Color {
+        switch row.status {
+        case .checkedInOnTime, .checkedInLate, .markedPrayed, .openOnTime, .openLate: RukiPalette.accent
+        case .upcoming, .notTracked: RukiPalette.secondaryText.opacity(0.35)
+        case .missed, .paused: RukiPalette.secondaryText.opacity(0.55)
         }
-        .padding()
-        .accessibilityElement(children: .combine)
+    }
+
+    private var iconColor: Color {
+        switch row.status {
+        case .checkedInOnTime, .checkedInLate, .markedPrayed: RukiPalette.background
+        case .openOnTime, .openLate: RukiPalette.accent
+        case .upcoming, .notTracked: RukiPalette.secondaryText.opacity(0.5)
+        case .missed, .paused: RukiPalette.secondaryText
+        }
+    }
+
+    private var symbol: String {
+        switch row.status {
+        case .checkedInOnTime, .checkedInLate, .markedPrayed: "checkmark"
+        case .paused: "pause.fill"
+        default: row.slot.prayer.symbolName
+        }
     }
 }
 
-#Preview {
-    let environment = AppEnvironment()
-    return TodayView(
-        timeline: environment.timeline,
-        clock: environment.clock,
-        userSettings: environment.userSettings,
-        historyStore: environment.historyStore,
-        cameraProvider: environment.cameraProvider,
-        social: environment.social,
-        notificationAuthorizer: environment.notificationAuthorizer,
-        onScheduleAffectingChange: {},
-        onDeleteAllData: { true }
-    )
+extension Prayer {
+    /// A sun-arc icon per prayer — the day's shape in five glyphs.
+    var symbolName: String {
+        switch self {
+        case .fajr: "sunrise.fill"
+        case .dhuhr: "sun.max.fill"
+        case .asr: "sun.haze.fill"
+        case .maghrib: "sunset.fill"
+        case .isha: "moon.stars.fill"
+        }
+    }
 }

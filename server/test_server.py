@@ -48,12 +48,13 @@ class ServerRules(unittest.TestCase):
         self.call("POST", "/friends/request", {"username": b["username"]}, a["token"])
         self.assertEqual(self.call("POST", "/friends/accept", {"userID": a["userID"]}, b["token"])[0], 200)
 
-    def checkin(self, user, late_after=None, front=True):
+    def checkin(self, user, late_after=None, front=True, photos=True):
         now = time.time()
         return self.call("POST", "/checkins", {
             "prayer": "dhuhr", "slotID": "2026-09-19.dhuhr", "onTimeUntil": late_after or now + 1800,
             "expiresAt": now + 3600, "caption": "x" * 200, "retakeCount": 0,
-            "rearPhoto": PHOTO, "frontPhoto": PHOTO if front else None}, user["token"])
+            "rearPhoto": PHOTO if photos else None,
+            "frontPhoto": PHOTO if front and photos else None}, user["token"])
 
     def test_circle_is_capped_at_five_on_both_sides(self):
         hub = self.user("hub_user")
@@ -89,6 +90,15 @@ class ServerRules(unittest.TestCase):
         self.assertEqual(self.call("GET", "/feed", token=stranger["token"])[1]["posts"], [])
         self.assertEqual(self.call("GET", f"/photos/{post['rearPhotoKey']}", token=stranger["token"])[0], 403)
         self.assertEqual(self.call("GET", "/feed")[0], 401)
+
+    def test_a_photo_less_prayed_post_is_shown_to_friends_and_never_locked(self):
+        a, b = self.user("nophoto_a"), self.user("nophoto_b")
+        self.befriend(a, b)
+        self.assertEqual(self.checkin(a, photos=False)[0], 200)          # "I prayed", no photo
+        post = self.call("GET", "/feed", token=b["token"])[1]["posts"][0]
+        self.assertFalse(post["locked"])                                  # nothing to hide, so never locked
+        self.assertIsNone(post["rearPhotoKey"])
+        self.assertIsNone(post["frontPhotoKey"])
 
     def test_lateness_comes_from_the_server_clock(self):
         u = self.user("late_user")

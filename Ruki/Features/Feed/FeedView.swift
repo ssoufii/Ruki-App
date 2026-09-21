@@ -6,7 +6,6 @@ import SwiftUI
 /// Lateness is never shown here — a friend's timing is not your business.
 struct FeedView: View {
     let session: SocialSession
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -28,7 +27,6 @@ struct FeedView: View {
             }
             .navigationTitle("Friends")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { if session.isSignedIn { await session.refreshFeed() } }
             .refreshable { if session.isSignedIn { await session.refreshFeed() } }
         }
@@ -48,9 +46,15 @@ private struct PostRow: View {
                     .font(.subheadline)
                     .foregroundStyle(RukiPalette.secondaryText)
             } else {
-                HStack(spacing: 8) {
-                    photo(post.rearPhotoKey)
-                    photo(post.frontPhotoKey)
+                if post.rearPhotoKey == nil && post.frontPhotoKey == nil {
+                    Label("Marked as prayed", systemImage: "checkmark.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(RukiPalette.secondaryText)
+                } else {
+                    HStack(spacing: 8) {
+                        photo(post.rearPhotoKey)
+                        photo(post.frontPhotoKey)
+                    }
                 }
                 if let caption = post.caption {
                     Text(caption).font(.subheadline)

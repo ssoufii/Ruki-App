@@ -20,21 +20,7 @@ struct RootView: View {
             case .today where environment.social.needsAccountPrompt:
                 AccountView(session: environment.social, onSkip: { environment.social.continueWithoutAccount() })
             case .today:
-                TodayView(
-                    timeline: environment.timeline,
-                    clock: environment.clock,
-                    userSettings: environment.userSettings,
-                    historyStore: environment.historyStore,
-                    cameraProvider: environment.cameraProvider,
-                    social: environment.social,
-                    notificationAuthorizer: environment.notificationAuthorizer,
-                    onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
-                    onDeleteAllData: { await environment.deleteAllOnDeviceData() },
-                    onDebugSendTestPrompt: { await environment.scheduleDebugTestPrompt() },
-                    refreshTrigger: environment.router.checkInDismissals
-                )
-                // A different login means a different history: rebuild rather than show the last person's.
-                .id(environment.historyOwnerKey)
+                mainTabs
             }
         }
         .background(RukiPalette.background)
@@ -44,6 +30,48 @@ struct RootView: View {
             // the window closed, or after checking in, must not open a camera.
             PendingCheckInView(route: pendingCheckInRoute)
         }
+    }
+
+    /// The signed-in shell: four tabs, rebuilt whenever the login changes so no
+    /// screen holds the previous person's history (D48).
+    private var mainTabs: some View {
+        TabView {
+            TodayView(
+                timeline: environment.timeline,
+                clock: environment.clock,
+                userSettings: environment.userSettings,
+                historyStore: environment.historyStore,
+                cameraProvider: environment.cameraProvider,
+                social: environment.social,
+                onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
+                refreshTrigger: environment.router.checkInDismissals
+            )
+            .tabItem { Label("Today", systemImage: "sun.max") }
+
+            FeedView(session: environment.social)
+                .tabItem { Label("Friends", systemImage: "photo.on.rectangle") }
+
+            CircleView(session: environment.social)
+                .tabItem { Label("Circle", systemImage: "person.2") }
+                .badge(environment.social.pendingInvitations.count)
+
+            ProfileView(
+                timeline: environment.timeline,
+                clock: environment.clock,
+                userSettings: environment.userSettings,
+                historyStore: environment.historyStore,
+                social: environment.social,
+                notificationAuthorizer: environment.notificationAuthorizer,
+                onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
+                onDeleteAllData: { await environment.deleteAllOnDeviceData() },
+                onDebugSendTestPrompt: { await environment.scheduleDebugTestPrompt() },
+                refreshTrigger: environment.router.checkInDismissals
+            )
+            .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+        }
+        .tint(RukiPalette.accent)
+        // A different login means a different history: rebuild rather than show the last person's.
+        .id(environment.historyOwnerKey)
     }
 
     private var pendingCheckInPresented: Binding<Bool> {

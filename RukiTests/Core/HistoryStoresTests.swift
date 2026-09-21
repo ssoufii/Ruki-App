@@ -81,4 +81,31 @@ struct HistoryStoresTests {
         _ = stores.store(for: .account(userID: "b"), now: now)
         #expect(stores.allStores(now: now).count == 3)   // signed-out + two accounts
     }
+
+    @Test("Logging out and back in shows the same history")
+    func historySurvivesLogOutAndIn() throws {
+        let stores = try stores()
+        try checkIn(stores.store(for: .account(userID: "sumeya"), now: now), .fajr)
+        _ = stores.store(for: .account(userID: "zenah"), now: now)     // someone else logs in meanwhile
+        _ = stores.store(for: .guest, now: now)                        // and someone uses the app signed out
+        #expect(try stores.store(for: .account(userID: "sumeya"), now: now).checkInSnapshots().count == 1)
+    }
+
+    @Test("On disk: an account's history is still there after the app is relaunched")
+    func historySurvivesRelaunchOnDisk() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let userID = "relaunch-\(UUID().uuidString)"
+        var firstLaunch: HistoryStores? = HistoryStores(
+            guestContainer: try RukiModelContainer.make(inMemory: true), defaults: defaults, inMemory: false
+        )
+        try checkIn(try #require(firstLaunch).store(for: .account(userID: userID), now: now), .fajr)
+        firstLaunch = nil   // the app quits
+
+        let secondLaunch = HistoryStores(
+            guestContainer: try RukiModelContainer.make(inMemory: true), defaults: defaults, inMemory: false
+        )
+        let store = secondLaunch.store(for: .account(userID: userID), now: now)
+        #expect(try store.checkInSnapshots().count == 1)
+        try store.deleteAll()   // leave no test data behind in the simulator
+    }
 }

@@ -21,9 +21,24 @@ struct AccountView: View {
     @State private var showingServer = false
     @FocusState private var focus: Field?
 
+    private var trimmedUsername: String { username.trimmingCharacters(in: .whitespaces) }
+
+    /// What's still missing on Create, in words — so a greyed-out button is never a mystery.
+    private var hint: String? {
+        guard mode == .create else { return nil }
+        if !trimmedUsername.isEmpty,
+           trimmedUsername.lowercased().range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) == nil {
+            return String(localized: "Usernames are 3–20 letters, numbers or underscores — no spaces.")
+        }
+        if password.count < 8 {
+            return String(localized: "Your password needs at least 8 characters (\(password.count) so far).")
+        }
+        return nil
+    }
+
     private var canSubmit: Bool {
-        let name = username.trimmingCharacters(in: .whitespaces)
-        return !name.isEmpty && (mode == .logIn ? !password.isEmpty : password.count >= 8) && !session.isBusy
+        guard !trimmedUsername.isEmpty, !session.isBusy else { return false }
+        return mode == .logIn ? !password.isEmpty : hint == nil
     }
 
     var body: some View {
@@ -67,6 +82,13 @@ struct AccountView: View {
                         .padding()
                 }
                 .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 16))
+
+                if let hint {
+                    Text(hint)
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(RukiPalette.secondaryText)
+                }
 
                 if let message = session.message {
                     Text(message)

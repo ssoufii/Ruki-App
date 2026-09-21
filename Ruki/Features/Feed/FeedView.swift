@@ -57,20 +57,26 @@ private struct PostRow: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
     }
 
+    /// The image sits in an overlay on a fixed-size box: a `scaledToFill` image laid out
+    /// directly is as wide as the photo, which pushed the whole row off-screen.
     @ViewBuilder private func photo(_ key: String?) -> some View {
         if let url = session.photoURL(key: key) {
-            AsyncImage(url: url) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                RukiPalette.surface
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .accessibilityHidden(true)
+            RukiPalette.surface
+                .frame(height: 200)
+                .frame(maxWidth: .infinity)
+                .overlay {
+                    AsyncImage(url: url) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        ProgressView()
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
         }
     }
 }

@@ -38,7 +38,12 @@ final class AppRouter {
         pendingCheckInSlotID = slotID
     }
 
+    /// Bumped every time the notification check-in cover closes, so Today can
+    /// re-read its rows immediately instead of waiting for its next minute tick.
+    private(set) var checkInDismissals = 0
+
     func dismissCheckIn() {
         pendingCheckInSlotID = nil
+        checkInDismissals += 1
     }
 }

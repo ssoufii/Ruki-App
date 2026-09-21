@@ -28,7 +28,6 @@ struct CircleView: View {
             if let account = session.account {
                 Section("You") {
                     LabeledContent("Username", value: account.username)
-                    Button("Log out") { session.logOut() }
                 }
             }
             addFriendSection

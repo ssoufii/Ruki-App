@@ -7,11 +7,28 @@ import SwiftUI
 /// control here would mislead the person testing this build.
 struct SettingsView: View {
     @State var viewModel: SettingsViewModel
+    let social: SocialSession
+    @State private var showingAccount = false
     @State private var showingPause = false
     @State private var showingDeleteConfirmation = false
 
     var body: some View {
         Form {
+            Section {
+                if let account = social.account {
+                    LabeledContent("Signed in as", value: account.username)
+                    Button("Log out", role: .destructive) { social.logOut() }
+                } else {
+                    Button("Log in or create account") { showingAccount = true }
+                }
+            } header: {
+                Text("Account")
+            } footer: {
+                Text(social.isSignedIn
+                    ? "Logging out keeps your account and circle. Log back in any time."
+                    : "Optional. An account lets you share check-ins with a small circle.")
+            }
+
             Section("Prayer times") {
                 Picker("Asr madhab", selection: $viewModel.madhab) {
                     Text("Shafi'i / Maliki / Hanbali").tag(Madhab.standard)
@@ -109,6 +126,16 @@ struct SettingsView: View {
             #endif
         }
         .task { await viewModel.refresh() }
+        .sheet(isPresented: $showingAccount) {
+            NavigationStack {
+                AccountView(session: social)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showingAccount = false } } }
+            }
+        }
+        .onChange(of: social.isSignedIn) { _, signedIn in
+            if signedIn { showingAccount = false }
+        }
         .sheet(isPresented: $showingPause) {
             PauseDurationView { duration in
                 viewModel.pause(for: duration)
@@ -125,7 +152,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This can't be undone. Your check-ins, private marks, and pauses on this device will be gone.")
+            Text("This can't be undone. Your check-ins, private marks and pauses on this device will be gone, and your Ruki account and circle will be deleted.")
         }
         .alert("Couldn't delete your data", isPresented: $viewModel.deleteFailed) {
             Button("OK", role: .cancel) {}
@@ -156,6 +183,7 @@ private extension NotificationAuthorizationStatus {
             clock: environment.clock,
             onScheduleAffectingChange: {},
             onDeleteAllData: { true }
-        )
+        ),
+        social: environment.social
     )
 }

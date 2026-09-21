@@ -4,6 +4,8 @@ import Testing
 
 private struct FakeSocialBackend: SocialBackend {
     var failDelete = false
+    var rejectSession = false
+    var incoming: [Friend] = []
 
     func register(username: String, password: String) async throws -> SocialAccount {
         SocialAccount(userID: "u1", username: username, token: "t")
@@ -12,8 +14,11 @@ private struct FakeSocialBackend: SocialBackend {
         if password != "right-password" { throw SocialError.server(code: "invalid_credentials") }
         return SocialAccount(userID: "u1", username: username, token: "t")
     }
-    func friends() async throws -> FriendsSnapshot { .empty }
-    func requestFriend(username: String) async throws {}
+    func friends() async throws -> FriendsSnapshot {
+        if rejectSession { throw SocialError.server(code: "unauthorized") }
+        return FriendsSnapshot(cap: 5, friends: [], incoming: incoming, outgoing: [])
+    }
+    func requestFriend(username: String) async throws { throw SocialError.server(code: "no_such_user") }
     func acceptFriend(userID: String) async throws {}
     func removeFriend(userID: String) async throws {}
     func publish(_ upload: CheckInUpload) async throws {}
@@ -67,5 +72,46 @@ struct SocialSessionTests {
         #expect(s.isSignedIn)
         s.logOut()
         #expect(!s.isSignedIn)
+    }
+
+    @Test("A failed friend request keeps its error message (the follow-up refresh must not wipe it)")
+    func failedRequestKeepsMessage() async {
+        let s = session()
+        await s.logIn(username: "salim", password: "right-password")
+        await s.addFriend(username: "ghost")
+        #expect(s.message == SocialError.server(code: "no_such_user").localizedDescription)
+    }
+
+    @Test("An invitation arrives through the quiet refresh, without touching busy state or messages")
+    func invitationArrives() async {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let invite = Friend(userID: "u2", username: "bilal")
+        let s = SocialSession(defaults: defaults, makeBackend: { _, _ in FakeSocialBackend(incoming: [invite]) })
+        await s.logIn(username: "salim", password: "right-password")
+        #expect(s.pendingInvitations == [invite])
+        #expect(!s.isBusy && s.message == nil)
+    }
+
+    @Test("Skipping the launch prompt sticks until you log out, then the prompt returns")
+    func skipAndLogOut() async {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let s = SocialSession(defaults: defaults, makeBackend: { _, _ in FakeSocialBackend() })
+        #expect(s.needsAccountPrompt)
+        s.continueWithoutAccount()
+        #expect(!s.needsAccountPrompt)
+        #expect(!SocialSession(defaults: defaults).needsAccountPrompt)   // remembered across launches
+
+        await s.logIn(username: "salim", password: "right-password")
+        s.logOut()
+        #expect(s.needsAccountPrompt)
+    }
+
+    @Test("A login the server no longer recognises logs out with a plain message")
+    func expiredSessionLogsOut() async {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let s = SocialSession(defaults: defaults, makeBackend: { _, _ in FakeSocialBackend(rejectSession: true) })
+        await s.logIn(username: "salim", password: "right-password")
+        #expect(!s.isSignedIn)
+        #expect(s.needsAccountPrompt)
     }
 }

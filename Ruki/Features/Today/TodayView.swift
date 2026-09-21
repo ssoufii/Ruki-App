@@ -14,6 +14,7 @@ struct TodayView: View {
     @State private var showingHistory = false
     @State private var showingCircle = false
     @State private var showingFeed = false
+    @Environment(\.scenePhase) private var scenePhase
     @State private var markingRow: TodayViewModel.Row?
 
     private let cameraProvider: any CameraProviding
@@ -100,6 +101,11 @@ struct TodayView: View {
                     } label: {
                         Image(systemName: "person.2")
                             .foregroundStyle(RukiPalette.secondaryText)
+                            .overlay(alignment: .topTrailing) {
+                                if !social.pendingInvitations.isEmpty {
+                                    Circle().fill(RukiPalette.accent).frame(width: 9, height: 9).offset(x: 4, y: -3)
+                                }
+                            }
                     }
                     .accessibilityLabel("Circle")
                     Button {
@@ -109,6 +115,10 @@ struct TodayView: View {
                             .foregroundStyle(RukiPalette.secondaryText)
                     }
                     .accessibilityLabel("Settings")
+                }
+
+                ForEach(social.pendingInvitations) { invitation in
+                    invitationCard(invitation)
                 }
 
                 if let activeRow = viewModel.activeRow {
@@ -156,8 +166,17 @@ struct TodayView: View {
             .padding()
         }
         .background(RukiPalette.background)
-        .task { viewModel.refresh() }
-        .onReceive(ticker) { _ in viewModel.refresh() }
+        .task {
+            viewModel.refresh()
+            await social.refreshQuietly()
+        }
+        .onReceive(ticker) { _ in
+            viewModel.refresh()
+            Task { await social.refreshQuietly() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await social.refreshQuietly() } }
+        }
         .onChange(of: refreshTrigger) { _, _ in viewModel.refresh() }
         .sheet(isPresented: $showingPause) {
             PauseDurationView { duration in
@@ -182,7 +201,8 @@ struct TodayView: View {
                     onScheduleAffectingChange: onScheduleAffectingChange,
                     onDeleteAllData: onDeleteAllData,
                     onDebugSendTestPrompt: onDebugSendTestPrompt
-                )
+                ),
+                social: social
             )
             .onDisappear { viewModel.refresh() }
         }
@@ -226,6 +246,46 @@ struct TodayView: View {
         case .upcoming, .markedPrayed, .missed, .notTracked:
             EmptyView()
         }
+    }
+
+    /// A friend asked you into their circle. In-app, not a system push: a push
+    /// needs the real backend (D43). Declining just removes the request.
+    private func invitationCard(_ friend: Friend) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(friend.username) invited you to their circle")
+                .font(.headline)
+                .foregroundStyle(RukiPalette.primaryText)
+            if let message = social.message {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(RukiPalette.secondaryText)
+            }
+            HStack(spacing: 12) {
+                Button {
+                    Task { await social.accept(friend) }
+                } label: {
+                    Text("Accept")
+                        .font(.headline)
+                        .foregroundStyle(RukiPalette.background)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity)
+                }
+                .background(RukiPalette.accent, in: RoundedRectangle(cornerRadius: 12))
+                Button {
+                    Task { await social.remove(friend) }
+                } label: {
+                    Text("Not now")
+                        .font(.headline)
+                        .foregroundStyle(RukiPalette.primaryText)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity)
+                }
+                .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding()
+        .background(RukiPalette.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
     }
 
     private func statusCard(_ text: String) -> some View {

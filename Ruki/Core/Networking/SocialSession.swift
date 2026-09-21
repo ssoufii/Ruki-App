@@ -15,6 +15,9 @@ final class SocialSession: CheckInPublishing {
     private(set) var isBusy = false
     /// The last failure, already worded for a person. Cleared by the next action.
     private(set) var message: String?
+    /// The person chose "Continue without an account". Cleared by logging out,
+    /// so logging out always brings the login screen back.
+    private(set) var declinedAccount: Bool
 
     /// Editable in Circle: a phone reaches the Mac by its LAN address, the Simulator by localhost.
     var serverURLString: String {
@@ -22,6 +25,10 @@ final class SocialSession: CheckInPublishing {
     }
 
     var isSignedIn: Bool { account != nil }
+    /// Whether launch should show the login screen: not signed in, and hasn't opted out.
+    var needsAccountPrompt: Bool { !isSignedIn && !declinedAccount }
+    /// Requests waiting on this person — what the Today invitation cards and the Circle badge read.
+    var pendingInvitations: [Friend] { friends.incoming }
 
     private let defaults: UserDefaults
     private let makeBackend: @Sendable (URL, String?) -> any SocialBackend
@@ -29,10 +36,13 @@ final class SocialSession: CheckInPublishing {
     private enum Keys {
         static let account = "social.account"
         static let serverURL = "social.serverURL"
+        static let declined = "social.declinedAccount"
     }
 
-    /// The token sits in `UserDefaults`, not the Keychain: it only unlocks a
-    /// local dev server (D43). Move it to the Keychain with the real backend.
+    /// The login token sits in `UserDefaults`, not the Keychain: it only
+    /// unlocks a local dev server (D43). Move it to the Keychain with the real
+    /// backend. The password itself is never stored — the token is what keeps
+    /// the person logged in across launches.
     init(
         defaults: UserDefaults = .standard,
         makeBackend: @escaping @Sendable (URL, String?) -> any SocialBackend = { HTTPSocialBackend(baseURL: $0, token: $1) }
@@ -40,6 +50,7 @@ final class SocialSession: CheckInPublishing {
         self.defaults = defaults
         self.makeBackend = makeBackend
         self.serverURLString = defaults.string(forKey: Keys.serverURL) ?? Self.defaultServerURL
+        self.declinedAccount = defaults.bool(forKey: Keys.declined)
         if let data = defaults.data(forKey: Keys.account) {
             account = try? JSONDecoder().decode(SocialAccount.self, from: data)
         }
@@ -51,22 +62,30 @@ final class SocialSession: CheckInPublishing {
         await perform { backend in
             self.setAccount(try await backend.register(username: username.trimmingCharacters(in: .whitespaces), password: password))
         }
-        if isSignedIn { await refreshFriends() }
+        await refreshQuietly()
     }
 
     func logIn(username: String, password: String) async {
         await perform { backend in
             self.setAccount(try await backend.login(username: username.trimmingCharacters(in: .whitespaces), password: password))
         }
-        if isSignedIn { await refreshFriends() }
+        await refreshQuietly()
+    }
+
+    /// "Continue without an account" on the launch prompt. Ruki works fully solo (R7).
+    func continueWithoutAccount() {
+        declinedAccount = true
+        defaults.set(true, forKey: Keys.declined)
     }
 
     /// Log out of this device. The account and its circle stay on the server;
-    /// logging back in restores them.
+    /// logging back in restores them. Brings the login screen back.
     func logOut() {
         setAccount(nil)
         friends = .empty
         feed = []
+        declinedAccount = false
+        defaults.set(false, forKey: Keys.declined)
     }
 
     /// Deletes the account and everything it posted from the server. Returns
@@ -93,17 +112,17 @@ final class SocialSession: CheckInPublishing {
 
     func addFriend(username: String) async {
         await perform { try await $0.requestFriend(username: username.trimmingCharacters(in: .whitespaces).lowercased()) }
-        await refreshFriends()
+        await refreshQuietly()
     }
 
     func accept(_ friend: Friend) async {
         await perform { try await $0.acceptFriend(userID: friend.userID) }
-        await refreshFriends()
+        await refreshQuietly()
     }
 
     func remove(_ friend: Friend) async {
         await perform { try await $0.removeFriend(userID: friend.userID) }
-        await refreshFriends()
+        await refreshQuietly()
     }
 
     // MARK: Feed
@@ -114,6 +133,26 @@ final class SocialSession: CheckInPublishing {
 
     func photoURL(key: String?) -> URL? {
         key.flatMap { backend()?.photoURL(key: $0) }
+    }
+
+    // MARK: Background refresh
+
+    /// Re-reads the circle and feed without touching `isBusy` or `message`, so
+    /// a poll never flickers a form or wipes an error the person is reading.
+    /// This is how an invitation "arrives": Today calls it on appear, on
+    /// foreground and every minute. A real push needs the real backend (D43).
+    func refreshQuietly() async {
+        guard let token = account?.token, let backend = backend() else { return }
+        do {
+            let latestFriends = try await backend.friends()
+            let latestFeed = try await backend.feed()
+            // The person may have logged out or switched account while this was in flight.
+            guard account?.token == token else { return }
+            friends = latestFriends
+            feed = latestFeed
+        } catch {
+            handleSessionExpiry(error, for: token)
+        }
     }
 
     // MARK: CheckInPublishing
@@ -134,11 +173,21 @@ final class SocialSession: CheckInPublishing {
         defaults.set(account.flatMap { try? JSONEncoder().encode($0) }, forKey: Keys.account)
     }
 
+    /// A 401 means the server no longer knows this login (its data was reset,
+    /// or the account was deleted elsewhere). Say so and show the login screen
+    /// rather than leaving every action failing.
+    private func handleSessionExpiry(_ error: Error, for token: String) {
+        guard error as? SocialError == .server(code: "unauthorized"), account?.token == token else { return }
+        logOut()
+        message = String(localized: "You've been logged out. Please log in again.")
+    }
+
     private func perform(_ work: (any SocialBackend) async throws -> Void) async {
         guard let backend = backend() else {
             message = SocialError.unreachable.localizedDescription
             return
         }
+        let token = account?.token
         isBusy = true
         message = nil
         defer { isBusy = false }
@@ -146,6 +195,7 @@ final class SocialSession: CheckInPublishing {
             try await work(backend)
         } catch {
             message = error.localizedDescription
+            if let token { handleSessionExpiry(error, for: token) }
         }
     }
 }

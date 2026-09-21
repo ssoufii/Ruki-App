@@ -17,6 +17,8 @@ struct RootView: View {
                     clock: environment.clock,
                     notificationAuthorizer: environment.notificationAuthorizer
                 )
+            case .today where environment.social.needsAccountPrompt:
+                AccountView(session: environment.social, onSkip: { environment.social.continueWithoutAccount() })
             case .today:
                 TodayView(
                     timeline: environment.timeline,

@@ -4,6 +4,8 @@ import SwiftUI
 /// Optional: nothing in Ruki needs it, and the copy says so.
 struct AccountView: View {
     let session: SocialSession
+    /// Set on the launch prompt only, where signing in is optional (R7).
+    var onSkip: (() -> Void)?
 
     private enum Mode: String, CaseIterable, Identifiable {
         case logIn, create
@@ -101,6 +103,13 @@ struct AccountView: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(RukiPalette.secondaryText)
+
+                if let onSkip {
+                    Button("Continue without an account", action: onSkip)
+                        .font(.subheadline)
+                        .foregroundStyle(RukiPalette.secondaryText)
+                        .padding(.top, 8)
+                }
             }
             .padding()
         }

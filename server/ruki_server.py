@@ -31,6 +31,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 FRIEND_CAP = 5
+# Dev only: show friends' posts without the D9 "check in first" lock, so one device
+# (which shares one local history between accounts) can test the feed.
+UNLOCK_ALL = os.environ.get("RUKI_UNLOCK_ALL") == "1"
 MAX_PHOTO_BYTES = 6 * 1024 * 1024
 MAX_BODY_BYTES = 16 * 1024 * 1024
 PRAYERS = {"fajr", "dhuhr", "asr", "maghrib", "isha"}
@@ -264,7 +267,7 @@ def feed(conn, user, _body, now):
         "ORDER BY c.prayed_at DESC", (user["id"], now)).fetchall()
     posts = []
     for r in rows:
-        locked = not viewer_has_checked_in(conn, user["id"], r["slot_id"])
+        locked = not UNLOCK_ALL and not viewer_has_checked_in(conn, user["id"], r["slot_id"])
         post = {"id": r["id"], "username": r["username"], "prayer": r["prayer"], "prayedAt": r["prayed_at"],
                 "isLate": bool(r["is_late"]), "expiresAt": r["expires_at"], "locked": locked}
         if not locked:
@@ -348,7 +351,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(404, "not_found")
         allowed = row["user_id"] == viewer["id"] or (
             are_friends(conn, viewer["id"], row["user_id"])
-            and viewer_has_checked_in(conn, viewer["id"], row["slot_id"]))
+            and (UNLOCK_ALL or viewer_has_checked_in(conn, viewer["id"], row["slot_id"])))
         if not allowed:
             raise ApiError(403, "locked")
         self._send(200, raw=(PHOTO_DIR / key).read_bytes(), content_type="image/jpeg")
@@ -367,4 +370,6 @@ if __name__ == "__main__":
     init_storage()
     port = int(os.environ.get("PORT", "8080"))
     print(f"Ruki dev server on http://0.0.0.0:{port}  (data: {DATA_DIR})")
+    if UNLOCK_ALL:
+        print("RUKI_UNLOCK_ALL=1: friends' posts are NOT locked behind your own check-in (dev only)")
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()

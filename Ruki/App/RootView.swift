@@ -24,6 +24,7 @@ struct RootView: View {
                     userSettings: environment.userSettings,
                     historyStore: environment.historyStore,
                     cameraProvider: environment.cameraProvider,
+                    social: environment.social,
                     notificationAuthorizer: environment.notificationAuthorizer,
                     onScheduleAffectingChange: { await environment.refreshBackgroundSchedule() },
                     onDeleteAllData: { await environment.deleteAllOnDeviceData() },
@@ -57,7 +58,8 @@ struct RootView: View {
             clock: environment.clock,
             userSettings: environment.userSettings,
             historyStore: environment.historyStore,
-            cameraProvider: environment.cameraProvider
+            cameraProvider: environment.cameraProvider,
+            publisher: environment.social
         ).route(forSlotID: slotID)
     }
 }

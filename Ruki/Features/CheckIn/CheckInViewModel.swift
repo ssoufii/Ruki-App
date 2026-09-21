@@ -42,6 +42,9 @@ final class CheckInViewModel {
     private let cameraProvider: any CameraProviding
     private let clock: any ClockProviding
     private let historyStore: HistoryStore
+    /// nil for a solo account: nothing leaves the device.
+    private let publisher: (any CheckInPublishing)?
+    private let onTimeUntil: Date?
 
     private(set) var state: State = .affirm
     private(set) var retakeCount = 0
@@ -61,8 +64,12 @@ final class CheckInViewModel {
         expiresAt: Date,
         cameraProvider: any CameraProviding,
         clock: any ClockProviding,
-        historyStore: HistoryStore
+        historyStore: HistoryStore,
+        publisher: (any CheckInPublishing)? = nil,
+        onTimeUntil: Date? = nil
     ) {
+        self.publisher = publisher
+        self.onTimeUntil = onTimeUntil
         self.slot = slot
         self.isLate = isLate
         self.captureMode = captureMode
@@ -145,6 +152,7 @@ final class CheckInViewModel {
     /// discard, nothing left behind if the user had backed out first.
     func post() {
         guard case .review(let photo) = state else { return }
+        let caption = CheckInRules.sanitizedCaption(caption)
         do {
             try historyStore.recordCheckIn(
                 for: slot,
@@ -153,10 +161,18 @@ final class CheckInViewModel {
                 frontImageData: photo.frontImageData,
                 rearImageData: photo.rearImageData,
                 expiresAt: expiresAt,
-                caption: CheckInRules.sanitizedCaption(caption),
+                caption: caption,
                 retakeCount: retakeCount
             )
             state = .posted
+            // After the local save, never before: the network can't fail a check-in.
+            if let publisher, let onTimeUntil {
+                publisher.publish(CheckInUpload(
+                    prayer: slot.prayer, slotID: slot.id, onTimeUntil: onTimeUntil,
+                    retakeCount: retakeCount, caption: caption, expiresAt: expiresAt,
+                    frontPhoto: photo.frontImageData, rearPhoto: photo.rearImageData
+                ))
+            }
         } catch {
             state = .failed
         }

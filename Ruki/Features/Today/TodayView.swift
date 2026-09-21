@@ -12,9 +12,12 @@ struct TodayView: View {
     @State private var checkInRow: TodayViewModel.Row?
     @State private var showingSettings = false
     @State private var showingHistory = false
+    @State private var showingCircle = false
+    @State private var showingFeed = false
     @State private var markingRow: TodayViewModel.Row?
 
     private let cameraProvider: any CameraProviding
+    private let social: SocialSession
 
     /// Kept only to hand to `CalendarView` (RUKI-032) when History is opened
     /// — `viewModel` already owns its own copy for Today's own rows.
@@ -53,6 +56,7 @@ struct TodayView: View {
         userSettings: UserSettings,
         historyStore: HistoryStore,
         cameraProvider: any CameraProviding,
+        social: SocialSession,
         notificationAuthorizer: any NotificationAuthorizing,
         onScheduleAffectingChange: @escaping () async -> Void,
         onDeleteAllData: @escaping () async -> Bool,
@@ -63,6 +67,7 @@ struct TodayView: View {
             wrappedValue: TodayViewModel(timeline: timeline, clock: clock, userSettings: userSettings, historyStore: historyStore)
         )
         self.cameraProvider = cameraProvider
+        self.social = social
         self.timeline = timeline
         self.clock = clock
         self.userSettings = userSettings
@@ -83,6 +88,20 @@ struct TodayView: View {
                         .foregroundStyle(RukiPalette.primaryText)
                         .accessibilityAddTraits(.updatesFrequently)
                     Spacer()
+                    Button {
+                        showingFeed = true
+                    } label: {
+                        Image(systemName: "photo.on.rectangle")
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
+                    .accessibilityLabel("Friends' check-ins")
+                    Button {
+                        showingCircle = true
+                    } label: {
+                        Image(systemName: "person.2")
+                            .foregroundStyle(RukiPalette.secondaryText)
+                    }
+                    .accessibilityLabel("Circle")
                     Button {
                         showingSettings = true
                     } label: {
@@ -148,9 +167,11 @@ struct TodayView: View {
             }
         }
         .sheet(item: $checkInRow) { row in
-            CheckInFlowView(viewModel: viewModel.makeCheckInViewModel(for: row, cameraProvider: cameraProvider))
+            CheckInFlowView(viewModel: viewModel.makeCheckInViewModel(for: row, cameraProvider: cameraProvider, publisher: social))
                 .onDisappear { viewModel.refresh() }
         }
+        .sheet(isPresented: $showingCircle) { CircleView(session: social) }
+        .sheet(isPresented: $showingFeed) { FeedView(session: social) }
         .sheet(isPresented: $showingSettings) {
             SettingsView(
                 viewModel: SettingsViewModel(
@@ -260,6 +281,7 @@ private struct PrayerRowView: View {
         userSettings: environment.userSettings,
         historyStore: environment.historyStore,
         cameraProvider: environment.cameraProvider,
+        social: environment.social,
         notificationAuthorizer: environment.notificationAuthorizer,
         onScheduleAffectingChange: {},
         onDeleteAllData: { true }

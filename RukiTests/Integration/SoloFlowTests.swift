@@ -5,9 +5,10 @@ import Testing
 /// RUKI-012: proves the app's core flows — prompt scheduling, recording a
 /// check-in, the streak, and history — all work end-to-end for a fresh solo
 /// account with no friend or circle state anywhere in the objects touched.
-/// Capture itself (the camera, RUKI-019/RUKI-020) can't be exercised outside
-/// a device; this only reaches as far as recording the check-in a real
-/// capture would hand `HistoryStore`.
+/// The first test reaches as far as recording the check-in a capture would hand
+/// `HistoryStore`; the second drives the real check-in flow itself (tapped prompt
+/// -> route -> affirm -> shutter -> post) against a fake camera. The camera
+/// hardware is the one part no test here can exercise.
 @MainActor
 @Suite("Solo flow (RUKI-012)")
 struct SoloFlowTests {
@@ -56,6 +57,48 @@ struct SoloFlowTests {
 
         // History: the check-in is durably queryable back out.
         #expect(try historyStore.checkInSnapshots() == [CheckInSnapshot(slotID: fajr.id, isLate: false)])
+    }
+
+    @Test("A fresh solo account goes tapped prompt -> check-in flow -> streak -> history through the real flow, with no friends")
+    func soloAccountCompletesTheRealCheckInFlow() async throws {
+        let now = ISO8601DateFormatter().date(from: "2026-09-19T13:10:00-04:00")!   // Dhuhr, on time
+        let userSettings = UserSettings(defaults: freshDefaults())
+        userSettings.onboardingCompletedAt = now.addingTimeInterval(-3600)
+        let trackingStart = try #require(userSettings.onboardingCompletedAt)
+        let historyStore = HistoryStore(modelContainer: try RukiModelContainer.make(inMemory: true))
+        let timeline = PrayerTimeline(provider: FixedPrayerTimeProvider(), madhab: userSettings.madhab)
+        let clock = FixedClock(date: now)
+        let dhuhr = try #require(timeline.slots(onDayOf: now).first { $0.prayer == .dhuhr })
+
+        // The tap: a notification for Dhuhr resolves to the real flow.
+        let resolver = CheckInRouteResolver(
+            timeline: timeline, clock: clock, userSettings: userSettings,
+            historyStore: historyStore, cameraProvider: FakeCameraProvider()
+        )
+        guard case .flow(let flow) = resolver.route(forSlotID: dhuhr.id) else {
+            Issue.record("A fresh account's open prayer must open the check-in flow"); return
+        }
+
+        // The flow: three taps, no friend anywhere.
+        await flow.affirmPrayed()
+        await flow.takePhoto()
+        flow.post()
+        #expect(flow.state == .posted)
+
+        // Streak and history reflect it.
+        let sameResolver = SlotResolver(
+            checkIns: try historyStore.checkInSnapshots(), marks: try historyStore.markSnapshots(),
+            pauses: try historyStore.pauseSnapshots(), trackingStart: trackingStart
+        )
+        let resolved = timeline.slots(onDayOf: now).map { (slot: $0, outcome: sameResolver.outcome(for: $0, now: now)) }
+        let summary = StreakCalculator().summary(for: resolved, now: now)
+        #expect(summary.current == 1)
+        #expect(try historyStore.checkInSnapshots() == [CheckInSnapshot(slotID: dhuhr.id, isLate: false)])
+
+        // A second tap on the same prompt does not re-open the camera.
+        guard case .alreadyCheckedIn = resolver.route(forSlotID: dhuhr.id) else {
+            Issue.record("A prompt tapped after checking in must not start another check-in"); return
+        }
     }
 
     @Test("Nothing a solo account touches — settings, prompt inputs, or a check-in record — carries a friend/circle field")

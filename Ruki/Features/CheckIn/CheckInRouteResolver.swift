@@ -27,6 +27,7 @@ struct CheckInRouteResolver {
     let userSettings: UserSettings
     let historyStore: HistoryStore
     let cameraProvider: any CameraProviding
+    var publisher: (any CheckInPublishing)? = nil
 
     func route(forSlotID slotID: String) -> Route {
         let now = clock.now()
@@ -57,7 +58,9 @@ struct CheckInRouteResolver {
                 expiresAt: timeline.nextSlot(after: slot.window.start)?.window.start ?? slot.window.end,
                 cameraProvider: cameraProvider,
                 clock: clock,
-                historyStore: historyStore
+                historyStore: historyStore,
+                publisher: publisher,
+                onTimeUntil: timeline.onTimeEnd(of: slot.window, userWindowMinutes: userSettings.checkInWindowMinutes)
             ))
         }
     }

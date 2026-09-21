@@ -14,6 +14,7 @@ final class AppEnvironment {
     let notificationAuthorizer: any NotificationAuthorizing
     let cameraProvider: any CameraProviding
     let router: AppRouter
+    let social = SocialSession()
 
     private let persistence: any PersistenceProviding
     private let notificationScheduler: any NotificationScheduling
@@ -71,6 +72,9 @@ final class AppEnvironment {
     /// the wrong way to fail a "delete my data" control. Clearing pending
     /// prompts is best-effort: a leftover prompt is not personal data.
     func deleteAllOnDeviceData() async -> Bool {
+        // Server first: if it can't be reached nothing has changed, and the
+        // person isn't told their data is gone while it still sits there.
+        guard await social.deleteAccount() else { return false }
         do {
             try historyStore.deleteAll()
         } catch {

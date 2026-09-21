@@ -127,7 +127,7 @@ final class TodayViewModel {
     /// next slot's start (D26/D37, when the photo gets purged), and capture
     /// mode follows the user's Space Only default (RUKI-022 adds a
     /// per-capture override in the flow itself).
-    func makeCheckInViewModel(for row: Row, cameraProvider: any CameraProviding) -> CheckInViewModel {
+    func makeCheckInViewModel(for row: Row, cameraProvider: any CameraProviding, publisher: (any CheckInPublishing)? = nil) -> CheckInViewModel {
         CheckInViewModel(
             slot: row.slot,
             isLate: row.status == .openLate,
@@ -135,7 +135,9 @@ final class TodayViewModel {
             expiresAt: timeline.nextSlot(after: row.slot.window.start)?.window.start ?? row.slot.window.end,
             cameraProvider: cameraProvider,
             clock: clock,
-            historyStore: historyStore
+            historyStore: historyStore,
+            publisher: publisher,
+            onTimeUntil: timeline.onTimeEnd(of: row.slot.window, userWindowMinutes: userSettings.checkInWindowMinutes)
         )
     }
 

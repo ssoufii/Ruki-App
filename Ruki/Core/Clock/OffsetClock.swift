@@ -19,6 +19,13 @@ final class OffsetClock: ClockProviding, Sendable {
         base.now().addingTimeInterval(offset.withLock { $0 })
     }
 
+    /// The unshifted time. Debug jumps are measured from this, so repeated jumps
+    /// land on the same instant instead of walking forward a day each time, and
+    /// two accounts jumping to the same scenario end up on the same prayer.
+    nonisolated func realNow() -> Date {
+        base.now()
+    }
+
     nonisolated func jump(to target: Date) {
         let delta = target.timeIntervalSince(base.now())
         offset.withLock { $0 = delta }

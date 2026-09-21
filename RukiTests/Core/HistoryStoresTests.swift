@@ -74,6 +74,13 @@ struct HistoryStoresTests {
         #expect(relaunched.store(for: .account(userID: "a"), now: later.addingTimeInterval(86_400)).trackingStart == now)
     }
 
+    @Test("A start date recorded from a jumped (future) clock is pulled back to real time")
+    func futureTrackingStartIsClamped() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        _ = try stores(defaults: defaults).store(for: .account(userID: "a"), now: now.addingTimeInterval(5 * 86_400))
+        #expect(try stores(defaults: defaults).store(for: .account(userID: "a"), now: now).trackingStart == now)
+    }
+
     @Test("Device-wide jobs reach every account's store, including ones not logged in")
     func allStoresCoversEveryAccount() throws {
         let stores = try stores()

@@ -230,6 +230,19 @@ struct SettingsViewModelTests {
         #expect(offsetClock.now() == DebugClockScenario.dhuhrJustBegan.date(referenceNow: referenceDate))
     }
 
+    @Test("Jumping repeatedly lands on the same instant each time — it never walks forward a day per jump")
+    func debugJumpDoesNotRatchet() throws {
+        let offsetClock = OffsetClock(base: FixedClock(date: referenceDate))
+        let (viewModel, _) = try makeViewModel(clock: offsetClock)
+        viewModel.debugJump(to: .ishaJustBegan)
+        viewModel.debugJump(to: .fajrOpen)
+        let first = offsetClock.now()
+        viewModel.debugJump(to: .dhuhrJustBegan)
+        viewModel.debugJump(to: .fajrOpen)
+        #expect(offsetClock.now() == first)
+        #expect(first == DebugClockScenario.fajrOpen.date(referenceNow: referenceDate))
+    }
+
     @Test("debugResetClock returns an OffsetClock to the real time")
     func debugResetClockUndoesTheJump() throws {
         let offsetClock = OffsetClock(base: FixedClock(date: referenceDate))

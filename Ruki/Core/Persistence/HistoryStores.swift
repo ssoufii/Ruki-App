@@ -66,7 +66,8 @@ final class HistoryStores {
 
     /// Set once, the first time this account is used on this device.
     private func recordedTrackingStart(for userID: String, now: Date) -> Date {
-        if let saved = defaults.object(forKey: Keys.trackingStart(userID)) as? Date { return saved }
+        // Clamped: a start date in the future can only have come from a jumped debug clock.
+        if let saved = defaults.object(forKey: Keys.trackingStart(userID)) as? Date { return min(saved, now) }
         defaults.set(now, forKey: Keys.trackingStart(userID))
         return now
     }

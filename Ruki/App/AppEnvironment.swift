@@ -16,7 +16,13 @@ final class AppEnvironment {
     /// every read follows the current login; screens that hold one are rebuilt
     /// when the owner changes (`historyOwnerKey` in `RootView`).
     var historyStore: HistoryStore {
-        historyStores.store(for: currentHistoryOwner, now: clock.now())
+        historyStores.store(for: currentHistoryOwner, now: realNow)
+    }
+
+    /// Real time even while a debug jump is active: an account's "started using
+    /// Ruki" moment must not be a jumped time, or its early prayers vanish.
+    private var realNow: Date {
+        (clock as? OffsetClock)?.realNow() ?? clock.now()
     }
 
     var historyOwnerKey: String { currentHistoryOwner.key }
@@ -71,7 +77,7 @@ final class AppEnvironment {
         // past their documented expiry (RDP-5).
         // Every account's store, not just the active one: expired photos shouldn't outlive their
         // expiry because their owner happens to be logged out.
-        let now = clock.now()
+        let now = realNow
         for store in historyStores.allStores(now: now) { try? store.purgeExpiredPhotos(now: now) }
 
         let inputs = userSettings.promptInputs
@@ -93,7 +99,7 @@ final class AppEnvironment {
         guard await social.deleteAccount() else { return false }
         do {
             // The whole device: every account's history, not just the one logged in.
-            for store in historyStores.allStores(now: clock.now()) { try store.deleteAll() }
+            for store in historyStores.allStores(now: realNow) { try store.deleteAll() }
         } catch {
             return false
         }

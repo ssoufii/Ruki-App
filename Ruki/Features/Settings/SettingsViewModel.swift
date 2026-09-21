@@ -181,7 +181,8 @@ final class SettingsViewModel {
     /// T3: jumps the DEBUG clock straight to a named scenario instead of
     /// waiting for the real adhan.
     func debugJump(to scenario: DebugClockScenario) {
-        (clock as? OffsetClock)?.jump(to: scenario.date(referenceNow: clock.now()))
+        guard let offsetClock = clock as? OffsetClock else { return }
+        offsetClock.jump(to: scenario.date(referenceNow: offsetClock.realNow()))
     }
 
     /// T3: back to the real wall clock.

@@ -21,14 +21,14 @@ struct AccountView: View {
     @State private var showingServer = false
     @FocusState private var focus: Field?
 
-    private var trimmedUsername: String { username.trimmingCharacters(in: .whitespaces) }
+    private var normalizedUsername: String { SocialSession.normalizedUsername(username) }
 
     /// What's still missing on Create, in words — so a greyed-out button is never a mystery.
-    private var hint: String? {
+    private var problem: String? {
         guard mode == .create else { return nil }
-        if !trimmedUsername.isEmpty,
-           trimmedUsername.lowercased().range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) == nil {
-            return String(localized: "Usernames are 3–20 letters, numbers or underscores — no spaces.")
+        if !normalizedUsername.isEmpty,
+           normalizedUsername.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) == nil {
+            return String(localized: "Your name can use 3–20 letters and numbers. Please leave out symbols.")
         }
         if password.count < 8 {
             return String(localized: "Your password needs at least 8 characters (\(password.count) so far).")
@@ -36,9 +36,16 @@ struct AccountView: View {
         return nil
     }
 
+    /// Shown once the name is fine but differs from what was typed, e.g. "Sumeya Farah".
+    private var preview: String? {
+        guard mode == .create, problem == nil || password.count < 8, !normalizedUsername.isEmpty,
+              normalizedUsername != username.trimmingCharacters(in: .whitespaces) else { return nil }
+        return String(localized: "Friends will find you as \(normalizedUsername)")
+    }
+
     private var canSubmit: Bool {
-        guard !trimmedUsername.isEmpty, !session.isBusy else { return false }
-        return mode == .logIn ? !password.isEmpty : hint == nil
+        guard !normalizedUsername.isEmpty, !session.isBusy else { return false }
+        return mode == .logIn ? !password.isEmpty : problem == nil
     }
 
     var body: some View {
@@ -83,8 +90,8 @@ struct AccountView: View {
                 }
                 .background(RukiPalette.surface, in: RoundedRectangle(cornerRadius: 16))
 
-                if let hint {
-                    Text(hint)
+                if let note = problem ?? preview {
+                    Text(note)
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(RukiPalette.secondaryText)

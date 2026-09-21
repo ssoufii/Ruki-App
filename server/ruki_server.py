@@ -126,6 +126,11 @@ def hash_password(password, salt):
     return hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
 
 
+def normalize_username(raw):
+    """"Sumeya  Farah" -> "sumeya_farah": how a typed name becomes a username, on every path."""
+    return re.sub(r"\s+", "_", str(raw).strip().lower())
+
+
 def user_json(row):
     return {"userID": row["id"], "username": row["username"]}
 
@@ -133,7 +138,7 @@ def user_json(row):
 # MARK: Handlers — each returns a JSON-able dict. `body` is the parsed request body.
 
 def register(conn, _user, body, now):
-    username = str(body.get("username", "")).strip().lower()
+    username = normalize_username(body.get("username", ""))
     if not USERNAME_RE.match(username):
         raise ApiError(400, "invalid_username")
     if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
@@ -148,7 +153,7 @@ def register(conn, _user, body, now):
 
 
 def login(conn, _user, body, _now):
-    row = conn.execute("SELECT * FROM users WHERE username=?", (str(body.get("username", "")).strip().lower(),)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE username=?", (normalize_username(body.get("username", "")),)).fetchone()
     password = str(body.get("password", ""))[:MAX_PASSWORD_LENGTH]
     # Same answer and same work whether the username or the password is wrong,
     # so a caller can't use login to learn which usernames exist.
@@ -191,7 +196,7 @@ def _accept(conn, requester_id, addressee_id, now):
 
 def request_friend(conn, user, body, now):
     target = conn.execute("SELECT * FROM users WHERE username=?",
-                          (str(body.get("username", "")).strip().lower(),)).fetchone()
+                          (normalize_username(body.get("username", "")),)).fetchone()
     if target is None:
         raise ApiError(404, "no_such_user")
     if target["id"] == user["id"]:

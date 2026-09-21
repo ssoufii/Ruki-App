@@ -115,6 +115,14 @@ class ServerRules(unittest.TestCase):
         self.assertEqual((wrong_pw[0], wrong_pw[1]), (401, {"error": "invalid_credentials"}))
         self.assertEqual((no_user[0], no_user[1]), (401, {"error": "invalid_credentials"}))
 
+    def test_a_typed_name_becomes_a_username_everywhere(self):
+        status, body = self.call("POST", "/register", {"username": "  Sumeya   Farah ", "password": "correct horse"})
+        self.assertEqual((status, body["username"]), (200, "sumeya_farah"))
+        self.assertEqual(self.call("POST", "/login", {"username": "SUMEYA farah", "password": "correct horse"})[0], 200)
+        other = self.user("finder_user")
+        self.assertEqual(self.call("POST", "/friends/request", {"username": "Sumeya Farah"}, other["token"])[1]["status"],
+                         "pending")
+
     def test_short_passwords_are_refused_and_never_stored_in_the_clear(self):
         self.assertEqual(self.call("POST", "/register", {"username": "weak_user", "password": "short"})[1]["error"],
                          "weak_password")

@@ -10,8 +10,11 @@ enum RukiModelContainer {
         Schema([CheckInRecord.self, PrayerMark.self, PauseRecord.self])
     }
 
-    static func make(inMemory: Bool = false) throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+    /// `storeName` nil is the original default store; a name gives that account
+    /// its own file (`HistoryStores`).
+    static func make(inMemory: Bool = false, storeName: String? = nil) throws -> ModelContainer {
+        let configuration = storeName.map { ModelConfiguration($0, schema: schema, isStoredInMemoryOnly: inMemory) }
+            ?? ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 }

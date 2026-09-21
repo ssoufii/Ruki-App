@@ -41,7 +41,7 @@ final class CalendarViewModel {
 
     func refresh() {
         let now = clock.now()
-        let trackingStart = userSettings.onboardingCompletedAt ?? now
+        let trackingStart = historyStore.trackingStart ?? userSettings.onboardingCompletedAt ?? now
 
         do {
             let resolver = SlotResolver(

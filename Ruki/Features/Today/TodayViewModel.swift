@@ -96,7 +96,7 @@ final class TodayViewModel {
                 checkIns: try historyStore.checkInSnapshots(),
                 marks: try historyStore.markSnapshots(),
                 pauses: pauses,
-                trackingStart: userSettings.onboardingCompletedAt ?? now
+                trackingStart: historyStore.trackingStart ?? userSettings.onboardingCompletedAt ?? now
             )
             rows = timeline.slots(onDayOf: now).map { slot in
                 Row(slot: slot, status: Self.status(for: slot, now: now, resolver: resolver, timeline: timeline, userSettings: userSettings))

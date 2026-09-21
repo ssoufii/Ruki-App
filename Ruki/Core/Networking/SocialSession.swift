@@ -56,18 +56,25 @@ final class SocialSession: CheckInPublishing {
         }
     }
 
+    /// "Sumeya Farah" -> "sumeya_farah". Mirrors the server so the screen can show
+    /// exactly what a typed name will become.
+    static func normalizedUsername(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            .split(whereSeparator: \.isWhitespace).joined(separator: "_")
+    }
+
     // MARK: Account
 
     func register(username: String, password: String) async {
         await perform { backend in
-            self.setAccount(try await backend.register(username: username.trimmingCharacters(in: .whitespaces), password: password))
+            self.setAccount(try await backend.register(username: Self.normalizedUsername(username), password: password))
         }
         await refreshQuietly()
     }
 
     func logIn(username: String, password: String) async {
         await perform { backend in
-            self.setAccount(try await backend.login(username: username.trimmingCharacters(in: .whitespaces), password: password))
+            self.setAccount(try await backend.login(username: Self.normalizedUsername(username), password: password))
         }
         await refreshQuietly()
     }
@@ -111,7 +118,7 @@ final class SocialSession: CheckInPublishing {
     }
 
     func addFriend(username: String) async {
-        await perform { try await $0.requestFriend(username: username.trimmingCharacters(in: .whitespaces).lowercased()) }
+        await perform { try await $0.requestFriend(username: Self.normalizedUsername(username)) }
         await refreshQuietly()
     }
 

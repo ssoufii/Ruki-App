@@ -33,6 +33,8 @@ struct RootView: View {
                     onDebugSendTestPrompt: { await environment.scheduleDebugTestPrompt() },
                     refreshTrigger: environment.router.checkInDismissals
                 )
+                // A different login means a different history: rebuild rather than show the last person's.
+                .id(environment.historyOwnerKey)
             }
         }
         .background(RukiPalette.background)

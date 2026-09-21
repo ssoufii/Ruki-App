@@ -10,7 +10,20 @@ import UserNotifications
 final class AppEnvironment {
     let clock: any ClockProviding
     let userSettings: UserSettings
-    let historyStore: HistoryStore
+    private let historyStores: HistoryStores
+
+    /// The signed-in account's history, or the signed-out person's. Computed so
+    /// every read follows the current login; screens that hold one are rebuilt
+    /// when the owner changes (`historyOwnerKey` in `RootView`).
+    var historyStore: HistoryStore {
+        historyStores.store(for: currentHistoryOwner, now: clock.now())
+    }
+
+    var historyOwnerKey: String { currentHistoryOwner.key }
+
+    private var currentHistoryOwner: HistoryOwner {
+        social.account.map { .account(userID: $0.userID) } ?? .guest
+    }
     let notificationAuthorizer: any NotificationAuthorizing
     let cameraProvider: any CameraProviding
     let router: AppRouter
@@ -56,7 +69,10 @@ final class AppEnvironment {
         // declared but never called anywhere (RUKI-037's purge existed only
         // as dead code); fixed here rather than leaving photos on-device
         // past their documented expiry (RDP-5).
-        try? historyStore.purgeExpiredPhotos(now: clock.now())
+        // Every account's store, not just the active one: expired photos shouldn't outlive their
+        // expiry because their owner happens to be logged out.
+        let now = clock.now()
+        for store in historyStores.allStores(now: now) { try? store.purgeExpiredPhotos(now: now) }
 
         let inputs = userSettings.promptInputs
         try? await backgroundRefresh.refreshAndScheduleNext(inputs: inputs)
@@ -76,7 +92,8 @@ final class AppEnvironment {
         // person isn't told their data is gone while it still sits there.
         guard await social.deleteAccount() else { return false }
         do {
-            try historyStore.deleteAll()
+            // The whole device: every account's history, not just the one logged in.
+            for store in historyStores.allStores(now: clock.now()) { try store.deleteAll() }
         } catch {
             return false
         }
@@ -117,7 +134,7 @@ final class AppEnvironment {
         self.router = AppRouter(userSettings: userSettings)
 
         persistence = Self.makePersistence()
-        historyStore = HistoryStore(modelContainer: persistence.modelContainer)
+        historyStores = HistoryStores(guestContainer: persistence.modelContainer)
 
         notificationScheduler = UserNotificationScheduler()
         notificationAuthorizer = SystemNotificationAuthorizer()

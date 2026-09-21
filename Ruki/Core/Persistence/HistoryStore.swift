@@ -10,9 +10,13 @@ import SwiftData
 @MainActor
 final class HistoryStore {
     private let modelContext: ModelContext
+    /// When this store's owner started using Ruki. `nil` means "use the device's
+    /// onboarding date" (signed-out use, and every test that builds a store directly).
+    let trackingStart: Date?
 
-    init(modelContainer: ModelContainer) {
+    init(modelContainer: ModelContainer, trackingStart: Date? = nil) {
         self.modelContext = ModelContext(modelContainer)
+        self.trackingStart = trackingStart
     }
 
     // MARK: Recording

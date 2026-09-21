@@ -10,6 +10,7 @@ import os
 final class OffsetClock: ClockProviding, Sendable {
     private let base: any ClockProviding
     private let offset = OSAllocatedUnfairLock<TimeInterval>(initialState: 0)
+    private let anchor = OSAllocatedUnfairLock<Date?>(initialState: nil)
 
     init(base: any ClockProviding = SystemClock()) {
         self.base = base
@@ -26,6 +27,18 @@ final class OffsetClock: ClockProviding, Sendable {
         base.now()
     }
 
+    /// The real moment this test session's jumps are measured from, fixed at the
+    /// first jump and kept until `reset()`. Without it, the "test day" would move
+    /// on if real time crossed midnight mid-session and split an account's check-ins.
+    nonisolated func testAnchor() -> Date {
+        anchor.withLock { current in
+            if let current { return current }
+            let now = base.now()
+            current = now
+            return now
+        }
+    }
+
     nonisolated func jump(to target: Date) {
         let delta = target.timeIntervalSince(base.now())
         offset.withLock { $0 = delta }
@@ -33,6 +46,7 @@ final class OffsetClock: ClockProviding, Sendable {
 
     nonisolated func reset() {
         offset.withLock { $0 = 0 }
+        anchor.withLock { $0 = nil }
     }
 
     nonisolated var isShifted: Bool {

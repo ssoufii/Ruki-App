@@ -243,6 +243,22 @@ struct SettingsViewModelTests {
         #expect(first == DebugClockScenario.fajrOpen.date(referenceNow: referenceDate))
     }
 
+    @Test("Every scenario lands on the same calendar day whatever the time of day, so check-ins stay together")
+    func debugJumpsShareOneDayAtAnyTimeOfDay() throws {
+        func days(atRealTime iso: String) throws -> Set<String> {
+            let offsetClock = OffsetClock(base: FixedClock(date: ISO8601DateFormatter().date(from: iso)!))
+            let (viewModel, _) = try makeViewModel(clock: offsetClock)
+            return Set(DebugClockScenario.allCases.map { scenario in
+                viewModel.debugJump(to: scenario)
+                return TorontoCalendar.dayKey(for: offsetClock.now())
+            })
+        }
+        let earlyMorning = try days(atRealTime: "2026-09-19T06:00:00Z")   // 2 AM Toronto
+        let midday = try days(atRealTime: "2026-09-19T16:00:00Z")         // noon Toronto
+        let night = try days(atRealTime: "2026-09-19T23:30:00Z")          // 7:30 PM Toronto
+        #expect(earlyMorning.count == 1 && earlyMorning == midday && midday == night)
+    }
+
     @Test("debugResetClock returns an OffsetClock to the real time")
     func debugResetClockUndoesTheJump() throws {
         let offsetClock = OffsetClock(base: FixedClock(date: referenceDate))

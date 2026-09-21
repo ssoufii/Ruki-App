@@ -182,7 +182,7 @@ final class SettingsViewModel {
     /// waiting for the real adhan.
     func debugJump(to scenario: DebugClockScenario) {
         guard let offsetClock = clock as? OffsetClock else { return }
-        offsetClock.jump(to: scenario.date(referenceNow: offsetClock.realNow()))
+        offsetClock.jump(to: scenario.date(referenceNow: offsetClock.testAnchor()))
     }
 
     /// T3: back to the real wall clock.

@@ -31,14 +31,13 @@ enum DebugClockScenario: String, CaseIterable, Sendable, Identifiable {
     /// standard madhab: Asr's two timings don't change which scenario this
     /// is, only shift it by the same few minutes either way.
     ///
-    /// Always the *next* occurrence, never one already behind `referenceNow`:
-    /// a prayer that began before onboarding is "before you started using
-    /// Ruki" and can't be checked in for, so jumping back to it would leave
-    /// nothing to tap.
+    /// Always *tomorrow's* prayer, whatever the time of day now. All five
+    /// scenarios therefore share one calendar day, so check-ins made across
+    /// several jumps stay on the same Today screen, and two accounts jumping to
+    /// the same scenario land on the same slot. Tomorrow also keeps every prayer
+    /// after an account's start date, so each one can actually be checked in for.
     func date(referenceNow: Date) -> Date {
-        let today = date(onDayOf: referenceNow)
-        if today > referenceNow { return today }
-        return date(onDayOf: TorontoCalendar.startOfDay(byAdding: 1, to: referenceNow))
+        date(onDayOf: TorontoCalendar.startOfDay(byAdding: 1, to: referenceNow))
     }
 
     private func date(onDayOf day: Date) -> Date {
